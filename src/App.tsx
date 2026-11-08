@@ -25,6 +25,8 @@ import {
   ShieldCheck,
   SlidersHorizontal,
   Sparkles,
+  Sun,
+  Moon,
   Wrench,
   X,
 } from 'lucide-react'
@@ -215,6 +217,9 @@ const navItems = [
 ]
 
 function App() {
+  const [theme, setTheme] = useState<'dark' | 'light'>(() =>
+    localStorage.getItem('benchlog.theme') === 'light' ? 'light' : 'dark',
+  )
   const [activeSection, setActiveSection] = useState('Overview')
   const [tools, setTools] = useState(readSavedTools)
   const [completedTaskIds, setCompletedTaskIds] = useState(readCompletedTaskIds)
@@ -235,6 +240,11 @@ function App() {
   useEffect(() => {
     localStorage.setItem('benchlog.tools', JSON.stringify(tools))
   }, [tools])
+
+  useEffect(() => {
+    localStorage.setItem('benchlog.theme', theme)
+    document.documentElement.dataset.theme = theme
+  }, [theme])
 
   useEffect(() => {
     localStorage.setItem('benchlog.completed-tasks', JSON.stringify(completedTaskIds))
@@ -298,7 +308,7 @@ function App() {
   const visibleTasks = activeSection === 'Maintenance' ? tasks : tasks.slice(0, 3)
 
   return (
-    <div className="app-shell">
+    <div className="app-shell" data-theme={theme}>
       <aside className={`sidebar ${menuOpen ? 'sidebar-open' : ''}`}>
         <a className="brand" href="#" onClick={() => selectNavigation('Overview')}>
           <span className="brand-mark"><span /><span /><span /></span>
@@ -359,6 +369,15 @@ function App() {
               <input aria-label="Search tools" onChange={(event) => setQuery(event.target.value)} placeholder="Find anything..." value={query} />
               <kbd><Command size={11} /> K</kbd>
             </label>
+            <button
+              className="theme-toggle"
+              aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+              onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+              type="button"
+            >
+              {theme === 'dark' ? <Sun size={15} /> : <Moon size={15} />}
+              <span>{theme === 'dark' ? 'Light mode' : 'Dark mode'}</span>
+            </button>
             <button className="icon-button notification-button" aria-label="Notifications" onClick={() => setNotificationOpen(!notificationOpen)} type="button">
               <Bell size={18} />
               <span className="notification-dot" />
