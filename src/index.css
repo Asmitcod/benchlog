@@ -197,6 +197,10 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .stock-quantity strong { color: #45483e; font-family: Manrope, sans-serif; font-size: 12px; font-weight: 650; }
 .stock-quantity small { color: #85877d; font-family: 'DM Sans', sans-serif; font-size: 8px; font-weight: 450; }
 .stock-quantity > span { color: #a0a198; font-size: 8px; }
+.stock-controls { display: flex; justify-content: flex-end; gap: 4px; margin-top: 2px; }
+.stock-controls button { display: grid; width: 20px; height: 20px; place-items: center; padding: 0; border: 1px solid #e6e8df; border-radius: 5px; color: #707b62; background: #fff; cursor: pointer; }
+.stock-controls button:hover:not(:disabled) { border-color: #b6c39f; background: #f3f5ed; }
+.stock-controls button:disabled { cursor: not-allowed; opacity: .4; }
 .stock-progress { height: 3px; margin: 8px 0 8px 45px; overflow: hidden; border-radius: 4px; background: #eeeee7; }
 .stock-progress > span { display: block; height: 100%; border-radius: inherit; }
 .progress-filament { width: 16%; background: #d39463; }
@@ -208,7 +212,11 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .status-low > span { background: #d1986a; }
 .status-soon { color: #9c875b; background: #f5f1e5; }
 .status-soon > span { background: #d2b369; }
+.status-good { color: #71845d; background: #edf2e8; }
+.status-good > span { background: #8da575; }
 .stock-status button { display: inline-flex; align-items: center; gap: 4px; border: 0; color: #79856c; background: none; cursor: pointer; font-size: 8px; }
+.stock-empty { display: flex; min-height: 100px; align-items: center; justify-content: center; gap: 8px; color: #818479; font-size: 9px; }
+.stock-empty svg { color: #81976c; }
 .stock-divider { height: 1px; margin-top: 13px; background: #efefe9; }
 .stock-all { display: flex; width: 100%; height: 37px; align-items: center; justify-content: center; gap: 7px; margin-top: 11px; border: 1px solid #eaeae4; border-radius: 6px; color: #707b62; background: #fff; cursor: pointer; font-size: 9px; transition: background .2s; }
 .stock-all:hover { background: #f6f7f1; }
@@ -570,11 +578,16 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .app-shell[data-theme='dark'] .stock-info strong, .app-shell[data-theme='dark'] .stock-quantity strong { color: #e3edf7; }
 .app-shell[data-theme='dark'] .stock-info > span, .app-shell[data-theme='dark'] .stock-quantity > span { color: #aebac7; }
 .app-shell[data-theme='dark'] .stock-quantity small { color: #abb9c8; }
+.app-shell[data-theme='dark'] .stock-controls button { border-color: #3b5062; color: #b7e7fb; background: #141f2a; }
+.app-shell[data-theme='dark'] .stock-controls button:hover:not(:disabled) { border-color: #4a7797; background: #1d2c3b; }
 .app-shell[data-theme='dark'] .stock-progress { background: #303b48; }
 .app-shell[data-theme='dark'] .stock-divider { background: #344252; }
 .app-shell[data-theme='dark'] .stock-all { border-color: #3c5266; color: #bcecff; background: #101b25; }
 .app-shell[data-theme='dark'] .stock-all:hover { background: #162634; }
 .app-shell[data-theme='dark'] .stock-status button { color: #9cdefa; }
+.app-shell[data-theme='dark'] .status-good { color: #b7d6a5; background: #1d3024; }
+.app-shell[data-theme='dark'] .stock-empty { color: #a9b8c5; }
+.app-shell[data-theme='dark'] .stock-empty svg { color: #83dfff; }
 .app-shell[data-theme='dark'] .tool-count { color: #a9b8c7; }
 .app-shell[data-theme='dark'] .filter-button { border-color: #35485a; color: #c9d9e7; background: #101821; }
 .app-shell[data-theme='dark'] .tool-card { border-color: #354658; background: #101720; }

@@ -23,6 +23,7 @@ import {
   LayoutDashboard,
   LifeBuoy,
   Menu,
+  Minus,
   MoreHorizontal,
   Plus,
   Printer,
@@ -69,6 +70,53 @@ type ServiceLog = {
   action: string
   note: string
   completedAt: string
+}
+
+type StockItem = {
+  id: string
+  name: string
+  location: string
+  quantity: number
+  capacity: number
+  minimum: number
+  unit: 'kg' | 'filter'
+  step: number
+  onRestockList: boolean
+}
+
+const initialStock: StockItem[] = [
+  { id: 'PLA-001', name: 'PLA filament', location: 'Prusa MK4S · 1 kg spools', quantity: 0.3, capacity: 2, minimum: 0.5, unit: 'kg', step: 0.1, onRestockList: false },
+  { id: 'HEPA-001', name: 'HEPA filter', location: 'Shop vac · 1 filter', quantity: 1, capacity: 3, minimum: 1, unit: 'filter', step: 1, onRestockList: false },
+]
+
+function isStockItem(value: unknown): value is StockItem {
+  if (typeof value !== 'object' || value === null) return false
+  return (
+    'id' in value && typeof value.id === 'string' &&
+    'name' in value && typeof value.name === 'string' &&
+    'location' in value && typeof value.location === 'string' &&
+    'quantity' in value && typeof value.quantity === 'number' && Number.isFinite(value.quantity) && value.quantity >= 0 &&
+    'capacity' in value && typeof value.capacity === 'number' && Number.isFinite(value.capacity) && value.capacity > 0 &&
+    'minimum' in value && typeof value.minimum === 'number' && Number.isFinite(value.minimum) && value.minimum >= 0 &&
+    'unit' in value && (value.unit === 'kg' || value.unit === 'filter') &&
+    'step' in value && typeof value.step === 'number' && Number.isFinite(value.step) && value.step > 0 &&
+    'onRestockList' in value && typeof value.onRestockList === 'boolean'
+  )
+}
+
+function readStockItems(): StockItem[] {
+  const saved = localStorage.getItem('benchlog.stock')
+  if (!saved) return initialStock
+  try {
+    const value: unknown = JSON.parse(saved)
+    if (Array.isArray(value) && value.every(isStockItem)) return value
+  } catch (error) {
+    if (!(error instanceof SyntaxError)) throw error
+    console.error('Saved workshop stock could not be read; starting with sample stock.', error)
+    return initialStock
+  }
+  console.error('Saved workshop stock was invalid; starting with sample stock.')
+  return initialStock
 }
 
 const initialTools: Tool[] = [
@@ -294,6 +342,7 @@ function App() {
   )
   const [activeSection, setActiveSection] = useState('Overview')
   const [tools, setTools] = useState(readSavedTools)
+  const [stockItems, setStockItems] = useState(readStockItems)
   const [completedTaskIds, setCompletedTaskIds] = useState(readCompletedTaskIds)
   const [serviceLogs, setServiceLogs] = useState(readServiceLogs)
   const tasks = useMemo(() => initialTasks.filter((task) => !completedTaskIds.includes(task.id)), [completedTaskIds])
@@ -305,6 +354,7 @@ function App() {
   const [selectedTask, setSelectedTask] = useState<number | null>(null)
   const [serviceNote, setServiceNote] = useState('')
   const [profileToolId, setProfileToolId] = useState(readToolIdFromHash)
+  const [showRestockOnly, setShowRestockOnly] = useState(false)
 
   useEffect(() => {
     if (!toast) return
@@ -315,6 +365,10 @@ function App() {
   useEffect(() => {
     localStorage.setItem('benchlog.tools', JSON.stringify(tools))
   }, [tools])
+
+  useEffect(() => {
+    localStorage.setItem('benchlog.stock', JSON.stringify(stockItems))
+  }, [stockItems])
 
   useLayoutEffect(() => {
     localStorage.setItem('benchlog.theme', theme)
@@ -346,6 +400,9 @@ function App() {
   const profileTasks = profileTool ? tasks.filter((task) => task.tool === profileTool.name) : []
   const profileServiceLogs = profileTool ? serviceLogs.filter((log) => log.tool === profileTool.name) : []
   const latestServiceLog = serviceLogs[0]
+  const lowStockCount = stockItems.filter((item) => item.quantity <= item.minimum).length
+  const restockCount = stockItems.filter((item) => item.onRestockList).length
+  const visibleStock = showRestockOnly ? stockItems.filter((item) => item.onRestockList) : stockItems
   const profileUrl = useMemo(() => {
     if (!profileTool) return ''
     const url = new URL(window.location.href)
@@ -396,6 +453,21 @@ function App() {
     setServiceNote('')
     setModal(null)
     setToast(`${task.tool} service logged.`)
+  }
+
+  function adjustStock(itemId: string, change: number) {
+    setStockItems((items) => items.map((item) => item.id === itemId
+      ? { ...item, quantity: Math.max(0, Math.round((item.quantity + change) * 10) / 10) }
+      : item))
+  }
+
+  function toggleRestock(itemId: string) {
+    const item = stockItems.find((stockItem) => stockItem.id === itemId)
+    if (!item) return
+    setStockItems((items) => items.map((stockItem) => stockItem.id === itemId
+      ? { ...stockItem, onRestockList: !stockItem.onRestockList }
+      : stockItem))
+    setToast(item.onRestockList ? `${item.name} removed from your restock list.` : `${item.name} added to your restock list.`)
   }
 
   function addTool(event: FormEvent<HTMLFormElement>) {
@@ -456,7 +528,7 @@ function App() {
         <span className="nav-heading">WORKSPACE</span>
         <nav className="side-nav" aria-label="Main navigation">
           {navItems.map(({ label, icon: Icon, count, alert }) => {
-            const badgeCount = label === 'Maintenance' ? String(tasks.length) : count
+            const badgeCount = label === 'Maintenance' ? String(tasks.length) : label === 'Parts & stock' ? String(lowStockCount) : count
             return (
               <button
                 className={`nav-link ${activeSection === label ? 'nav-active' : ''}`}
@@ -577,8 +649,8 @@ function App() {
             <motion.article className="stat-card" initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.28 }}>
               <GlassSurface active={theme === 'dark'} />
               <span className="stat-label">PARTS & MATERIALS <Box size={15} /></span>
-              <div className="stat-value">2<span>running low</span></div>
-              <div className="stat-foot"><span className="stock-dot" /> A quick restock goes a long way <ArrowUpRight size={13} /></div>
+              <div className="stat-value">{lowStockCount}<span>running low</span></div>
+              <div className="stat-foot"><span className="stock-dot" /> {restockCount} on your restock list <ArrowUpRight size={13} /></div>
             </motion.article>
             <motion.article className="stat-card stat-card-quiet" initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.34 }}>
               <GlassSurface active={theme === 'dark'} />
@@ -621,24 +693,43 @@ function App() {
               <GlassSurface active={theme === 'dark'} />
               <div className="panel-heading">
                 <div><span className="section-eyebrow">BEFORE YOU RUN OUT</span><h2>On the shelf</h2></div>
-                <button className="panel-more" aria-label="More stock options" onClick={() => setToast('Stock management is ready for your next build.')} type="button"><MoreHorizontal size={20} /></button>
+                <button className={`panel-more ${showRestockOnly ? 'panel-more-active' : ''}`} aria-label={showRestockOnly ? 'Show all stock' : 'Show restock list'} onClick={() => setShowRestockOnly((show) => !show)} type="button"><Filter size={16} /></button>
               </div>
-              <div className="stock-item">
-                <span className="stock-image filament"><span /></span>
-                <div className="stock-info"><strong>PLA filament</strong><span>Prusa MK4S <span className="stock-bullet">·</span> 1 kg spools</span></div>
-                <div className="stock-quantity"><strong>0.3 <small>kg</small></strong><span>of 2 kg</span></div>
-              </div>
-              <div className="stock-progress"><span className="progress-filament" /></div>
-              <div className="stock-status"><span className="status-pill status-low"><span /> Running low</span><button type="button" onClick={() => setToast('Added PLA filament to your restock list.')}>Add to list <ArrowUpRight size={13} /></button></div>
-              <div className="stock-divider" />
-              <div className="stock-item">
-                <span className="stock-image filter"><LifeBuoy size={19} strokeWidth={1.5} /></span>
-                <div className="stock-info"><strong>HEPA filter</strong><span>Shop vac <span className="stock-bullet">·</span> 1 filter</span></div>
-                <div className="stock-quantity"><strong>1 <small>left</small></strong><span>of 3</span></div>
-              </div>
-              <div className="stock-progress"><span className="progress-filter" /></div>
-              <div className="stock-status"><span className="status-pill status-soon"><span /> Almost out</span><button type="button" onClick={() => setToast('Added HEPA filter to your restock list.')}>Add to list <ArrowUpRight size={13} /></button></div>
-              <button className="stock-all" type="button" onClick={() => setToast('You have 8 parts and materials in your workshop.')}>See all 8 parts & materials <ArrowRight size={14} /></button>
+              {visibleStock.length > 0 ? visibleStock.map((item, index) => {
+                const isLow = item.quantity <= item.minimum
+                const quantityLabel = item.unit === 'kg' ? item.quantity.toFixed(1) : String(item.quantity)
+                const capacityLabel = item.unit === 'kg' ? item.capacity.toFixed(1) : String(item.capacity)
+                const progress = Math.min(100, (item.quantity / item.capacity) * 100)
+                return (
+                  <div className="stock-entry" key={item.id}>
+                    {index > 0 && <div className="stock-divider" />}
+                    <div className="stock-item">
+                      <span className={`stock-image ${item.unit === 'kg' ? 'filament' : 'filter'}`}>
+                        {item.unit === 'kg' ? <span /> : <LifeBuoy size={19} strokeWidth={1.5} />}
+                      </span>
+                      <div className="stock-info"><strong>{item.name}</strong><span>{item.location}</span></div>
+                      <div className="stock-quantity">
+                        <strong>{quantityLabel} <small>{item.unit === 'kg' ? 'kg' : item.quantity === 1 ? 'filter' : 'filters'}</small></strong>
+                        <span>of {capacityLabel} {item.unit === 'kg' ? 'kg' : 'filters'}</span>
+                        <div className="stock-controls">
+                          <button aria-label={`Use ${item.step} ${item.unit} of ${item.name}`} disabled={item.quantity === 0} onClick={() => adjustStock(item.id, -item.step)} type="button"><Minus size={11} /></button>
+                          <button aria-label={`Receive ${item.step} ${item.unit} of ${item.name}`} onClick={() => adjustStock(item.id, item.step)} type="button"><Plus size={11} /></button>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="stock-progress"><span className={item.unit === 'kg' ? 'progress-filament' : 'progress-filter'} style={{ width: `${progress}%` }} /></div>
+                    <div className="stock-status">
+                      <span className={`status-pill ${isLow ? item.quantity === 0 ? 'status-low' : 'status-soon' : 'status-good'}`}><span />{item.quantity === 0 ? 'Out of stock' : isLow ? item.unit === 'kg' ? 'Running low' : 'Almost out' : 'In good shape'}</span>
+                      <button aria-pressed={item.onRestockList} type="button" onClick={() => toggleRestock(item.id)}>{item.onRestockList ? 'On restock list' : 'Add to list'} <ArrowUpRight size={13} /></button>
+                    </div>
+                  </div>
+                )
+              }) : (
+                <div className="stock-empty"><Check size={16} /><span>Your restock list is clear.</span></div>
+              )}
+              <button className="stock-all" type="button" onClick={() => setShowRestockOnly((show) => !show)}>
+                {showRestockOnly ? `Show all ${stockItems.length} parts & materials` : `Restock list · ${restockCount} ${restockCount === 1 ? 'item' : 'items'}`} <ArrowRight size={14} />
+              </button>
             </section>
           </div>
 
