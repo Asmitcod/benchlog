@@ -280,6 +280,14 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .modal-form input:focus, .modal-form select:focus, .service-form select:focus, .service-form textarea:focus { border-color: #879b72; }
 .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 5px; padding-top: 14px; border-top: 1px solid #ecece5; }
 .cancel-button { height: 35px; padding: 0 12px; border: 1px solid #e6e7df; border-radius: 6px; color: #696c62; background: #fff; cursor: pointer; font-size: 10px; }
+.account-dialog { width: min(440px, 100%); }
+.account-content { display: grid; gap: 13px; padding-top: 16px; }
+.account-identity { display: flex; align-items: center; gap: 8px; margin: 0; color: #3d4037; font-size: 12px; font-weight: 600; overflow-wrap: anywhere; }
+.account-note { margin: 0; color: #85877d; font-size: 10px; line-height: 1.6; }
+.account-feedback { display: flex; align-items: flex-start; gap: 7px; margin: 0; padding: 9px 10px; border: 1px solid transparent; border-radius: 6px; font-size: 10px; line-height: 1.5; overflow-wrap: anywhere; }
+.account-error { border-color: #e8caca; color: #8d3c3c; background: #fff3f1; }
+.account-success { border-color: #d7e3cb; color: #4c6740; background: #f3f8ed; }
+.account-feedback code { font-size: 9px; }
 .service-date { display: flex; align-items: center; gap: 8px; padding: 11px 9px; border: 1px solid #ecece5; border-radius: 6px; color: #85877d; font-size: 10px; }
 .service-date strong { margin-left: auto; color: #505349; font-size: 10px; font-weight: 550; }
 .optional-label { margin-left: 4px; color: #a1a297; font-family: var(--mono); font-size: 8px; letter-spacing: .4px; }
@@ -481,6 +489,10 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .app-shell[data-theme='dark'] .modal-form input, .app-shell[data-theme='dark'] .modal-form select, .app-shell[data-theme='dark'] .service-form select, .app-shell[data-theme='dark'] .service-form textarea { border-color: #3a3e34; color: #e2e4d9; background: #22251f; }
 .app-shell[data-theme='dark'] .modal-form input::placeholder, .app-shell[data-theme='dark'] .service-form textarea::placeholder { color: #898d80; }
 .app-shell[data-theme='dark'] .modal-actions { border-color: #353930; }
+.app-shell[data-theme='dark'] .account-identity { color: #e2e4d9; }
+.app-shell[data-theme='dark'] .account-note { color: #a4a89a; }
+.app-shell[data-theme='dark'] .account-error { border-color: #634342; color: #f0c4bd; background: #372625; }
+.app-shell[data-theme='dark'] .account-success { border-color: #43563c; color: #c4d8a6; background: #263222; }
 .app-shell[data-theme='dark'] .cancel-button { border-color: #3b3f36; color: #c2c5b9; background: #22251f; }
 .app-shell[data-theme='dark'] .service-date { border-color: #383c33; color: #aaada1; }
 .app-shell[data-theme='dark'] .service-date strong { color: #e0e2d8; }

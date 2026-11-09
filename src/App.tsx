@@ -36,12 +36,16 @@ import {
   Sun,
   Moon,
   Trash2,
+  UserRound,
   Wrench,
   X,
 } from 'lucide-react'
 import { lazy, Suspense, useEffect, useLayoutEffect, useMemo, useState } from 'react'
 import type { FormEvent } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
+import AccountDialog from './components/AccountDialog'
+import { supabaseClient } from './lib/supabase'
+import { useAuthSession } from './lib/useAuthSession'
 
 type Tool = {
   id: string
@@ -427,6 +431,7 @@ const navItems = [
 ]
 
 function App() {
+  const { session, error: authSessionError } = useAuthSession(supabaseClient)
   const [theme, setTheme] = useState<'dark' | 'light'>(() =>
     localStorage.getItem('benchlog.theme') === 'light' ? 'light' : 'dark',
   )
@@ -449,6 +454,7 @@ function App() {
   const [query, setQuery] = useState('')
   const [modal, setModal] = useState<'tool' | 'service' | 'stock' | 'maintenance' | null>(null)
   const [menuOpen, setMenuOpen] = useState(false)
+  const [accountOpen, setAccountOpen] = useState(false)
   const [toast, setToast] = useState('')
   const [notificationOpen, setNotificationOpen] = useState(false)
   const [selectedTask, setSelectedTask] = useState<number | 'manual' | null>(null)
@@ -503,6 +509,8 @@ function App() {
     [query, tools],
   )
   const profileTool = tools.find((tool) => tool.id === profileToolId)
+  const accountEmail = session?.user.email ?? null
+  const accountInitials = accountEmail ? accountEmail.slice(0, 2).toUpperCase() : 'L'
   const profileTasks = profileTool ? tasks.filter((task) => task.tool === profileTool.name) : []
   const profileServiceLogs = profileTool ? serviceLogs.filter((log) => log.tool === profileTool.name) : []
   const latestServiceLog = serviceLogs[0]
@@ -715,9 +723,9 @@ function App() {
           <span>bench<span className="brand-light">log</span></span>
         </a>
 
-        <button className="workshop-switcher" type="button" onClick={() => setToast('You’re viewing Asmit’s workshop.')}>
-          <span className="workshop-avatar">A</span>
-          <span className="workshop-copy"><strong>Asmit’s workshop</strong><small>Personal space</small></span>
+        <button className="workshop-switcher" type="button" onClick={() => setAccountOpen(true)}>
+          <span className="workshop-avatar">{accountInitials}</span>
+          <span className="workshop-copy"><strong>{accountEmail ? 'Your workshop' : 'Local workshop'}</strong><small>{accountEmail ?? 'Personal space'}</small></span>
           <ChevronDown size={15} />
         </button>
 
@@ -743,15 +751,15 @@ function App() {
         <div className="sidebar-bottom">
           <div className="offline-card">
             <span className="offline-icon"><ShieldCheck size={17} /></span>
-            <div><strong>All caught up</strong><span>Your workshop is in sync</span></div>
+            <div><strong>{accountEmail ? 'Account connected' : 'Local-only data'}</strong><span>{accountEmail ? 'Cloud sync not enabled yet' : 'Stored in this browser'}</span></div>
             <span className="online-dot" />
           </div>
           <button className="nav-link quiet-link" type="button" onClick={() => setToast('Settings are coming to your workshop.')}>
             <CircleHelp size={17} /><span>Help & feedback</span><ArrowUpRight size={14} className="quiet-arrow" />
           </button>
-          <button className="profile-button" type="button" onClick={() => setToast('Signed in as Asmit Bisht.')}>
-            <span className="profile-avatar">AB</span>
-            <span className="profile-copy"><strong>Asmit Bisht</strong><small>Maker plan</small></span>
+          <button className="profile-button" type="button" onClick={() => setAccountOpen(true)}>
+            <span className="profile-avatar">{accountInitials}</span>
+            <span className="profile-copy"><strong>{accountEmail ?? 'Sign in'}</strong><small>{accountEmail ? 'Account settings' : 'Enable cloud sync'}</small></span>
             <MoreHorizontal size={19} />
           </button>
         </div>
@@ -781,6 +789,9 @@ function App() {
             <button className="icon-button notification-button" aria-label="Notifications" onClick={() => setNotificationOpen(!notificationOpen)} type="button">
               <Bell size={18} />
               <span className="notification-dot" />
+            </button>
+            <button className="icon-button" aria-label={accountEmail ? 'Account settings' : 'Sign in'} onClick={() => setAccountOpen(true)} type="button">
+              <UserRound size={17} />
             </button>
             <button className="add-button top-add" onClick={() => setModal('tool')} type="button"><Plus size={16} /> Add a tool</button>
             <AnimatePresence>
@@ -1169,6 +1180,14 @@ function App() {
       <AnimatePresence>
         {toast && <motion.div className="toast-message" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 8 }}><span><Check size={14} /></span>{toast}</motion.div>}
       </AnimatePresence>
+      {accountOpen && (
+        <AccountDialog
+          client={supabaseClient}
+          onClose={() => setAccountOpen(false)}
+          sessionError={authSessionError}
+          user={session?.user ?? null}
+        />
+      )}
     </div>
   )
 }
