@@ -1,4 +1,6 @@
 import { AnimatePresence, motion } from 'motion/react'
+import { Glass } from 'glisse'
+import 'glisse/styles.css'
 import {
   ArrowDownRight,
   ArrowRight,
@@ -30,8 +32,9 @@ import {
   Wrench,
   X,
 } from 'lucide-react'
-import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
+import { lazy, Suspense, useEffect, useLayoutEffect, useMemo, useState } from 'react'
 import type { FormEvent } from 'react'
+import asciiArtwork from '../ascii-art.svg?url'
 
 type Tool = {
   id: string
@@ -153,6 +156,10 @@ const todayLabel = new Intl.DateTimeFormat('en', { weekday: 'long', month: 'long
   .toUpperCase()
 const shortDate = new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric' }).format(today)
 
+function GlassSurface({ active }: { active: boolean }) {
+  return active ? <Glass className="glisse-panel-surface" aria-hidden="true" /> : null
+}
+
 function ToolIllustration({ type }: { type: Tool['illustration'] }) {
   return (
     <svg className={`tool-illustration illustration-${type}`} viewBox="0 0 280 130" aria-hidden="true">
@@ -241,7 +248,7 @@ function App() {
     localStorage.setItem('benchlog.tools', JSON.stringify(tools))
   }, [tools])
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     localStorage.setItem('benchlog.theme', theme)
     document.documentElement.dataset.theme = theme
   }, [theme])
@@ -309,6 +316,7 @@ function App() {
 
   return (
     <div className="app-shell" data-theme={theme}>
+      {theme === 'dark' && <img className="ascii-backdrop" src={asciiArtwork} data-glisse-backdrop="" alt="" aria-hidden="true" />}
       <aside className={`sidebar ${menuOpen ? 'sidebar-open' : ''}`}>
         <a className="brand" href="#" onClick={() => selectNavigation('Overview')}>
           <span className="brand-mark"><span /><span /><span /></span>
@@ -431,21 +439,25 @@ function App() {
 
           <section className="stats-grid" aria-label="Workshop summary">
             <motion.article className="stat-card" initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.16 }}>
+              <GlassSurface active={theme === 'dark'} />
               <span className="stat-label">IN YOUR WORKSHOP <Hammer size={15} /></span>
               <div className="stat-value">{12 + tools.length - initialTools.length}<span>tools</span></div>
               <div className="stat-foot"><span className="positive-dot" /> Everything where it belongs <ArrowUpRight size={13} /></div>
             </motion.article>
             <motion.article className="stat-card stat-card-due" initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.22 }}>
+              <GlassSurface active={theme === 'dark'} />
               <span className="stat-label">NEEDS A LITTLE LOVE <Clock3 size={15} /></span>
               <div className="stat-value">{tasks.length}<span>tasks</span></div>
               <div className="stat-foot"><span className="due-dot" /> {tasks.some((task) => task.state === 'Overdue') ? 'One is a little overdue' : 'You’re all caught up'} <ArrowUpRight size={13} /></div>
             </motion.article>
             <motion.article className="stat-card" initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.28 }}>
+              <GlassSurface active={theme === 'dark'} />
               <span className="stat-label">PARTS & MATERIALS <Box size={15} /></span>
               <div className="stat-value">2<span>running low</span></div>
               <div className="stat-foot"><span className="stock-dot" /> A quick restock goes a long way <ArrowUpRight size={13} /></div>
             </motion.article>
             <motion.article className="stat-card stat-card-quiet" initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.34 }}>
+              <GlassSurface active={theme === 'dark'} />
               <span className="stat-label">LAST THING YOU DID <Sparkles size={15} /></span>
               <div className="stat-value stat-last">Cleaned the<br />laser lens</div>
               <div className="stat-foot"><span className="positive-dot" /> Yesterday, on the Glowforge Pro</div>
@@ -454,6 +466,7 @@ function App() {
 
           <div className="dashboard-grid">
             <section className="panel maintenance-panel" id="maintenance">
+              <GlassSurface active={theme === 'dark'} />
               <div className="panel-heading">
                 <div><span className="section-eyebrow">KEEP THE GOOD WORK GOING</span><h2>On the bench</h2></div>
                 <button className="text-button" onClick={() => selectNavigation('Maintenance')} type="button">All maintenance <ArrowRight size={14} /></button>
@@ -481,6 +494,7 @@ function App() {
             </section>
 
             <section className="panel stock-panel" id="stock">
+              <GlassSurface active={theme === 'dark'} />
               <div className="panel-heading">
                 <div><span className="section-eyebrow">BEFORE YOU RUN OUT</span><h2>On the shelf</h2></div>
                 <button className="panel-more" aria-label="More stock options" onClick={() => setToast('Stock management is ready for your next build.')} type="button"><MoreHorizontal size={20} /></button>
@@ -505,6 +519,7 @@ function App() {
           </div>
 
           <section className="panel tools-panel" id="tools">
+            <GlassSurface active={theme === 'dark'} />
             <div className="panel-heading tools-heading">
               <div><span className="section-eyebrow">GOOD COMPANY</span><h2>Tools you love</h2></div>
               <div className="tools-actions"><span className="tool-count">{filteredTools.length} of {tools.length} tools</span><button className="filter-button" type="button" onClick={() => setToast('Showing tools from your whole workshop.')}><Filter size={14} /> Filter</button><button className="icon-button tools-arrow" aria-label="See all tools" onClick={() => selectNavigation('My tools')} type="button"><ArrowRight size={16} /></button></div>
