@@ -79,14 +79,14 @@ type StockItem = {
   quantity: number
   capacity: number
   minimum: number
-  unit: 'kg' | 'filter'
+  unit: string
   step: number
   onRestockList: boolean
 }
 
 const initialStock: StockItem[] = [
   { id: 'PLA-001', name: 'PLA filament', location: 'Prusa MK4S · 1 kg spools', quantity: 0.3, capacity: 2, minimum: 0.5, unit: 'kg', step: 0.1, onRestockList: false },
-  { id: 'HEPA-001', name: 'HEPA filter', location: 'Shop vac · 1 filter', quantity: 1, capacity: 3, minimum: 1, unit: 'filter', step: 1, onRestockList: false },
+  { id: 'HEPA-001', name: 'HEPA filter', location: 'Shop vac · 1 filter', quantity: 1, capacity: 3, minimum: 1, unit: 'pcs', step: 1, onRestockList: false },
 ]
 
 function isStockItem(value: unknown): value is StockItem {
@@ -98,7 +98,7 @@ function isStockItem(value: unknown): value is StockItem {
     'quantity' in value && typeof value.quantity === 'number' && Number.isFinite(value.quantity) && value.quantity >= 0 &&
     'capacity' in value && typeof value.capacity === 'number' && Number.isFinite(value.capacity) && value.capacity > 0 &&
     'minimum' in value && typeof value.minimum === 'number' && Number.isFinite(value.minimum) && value.minimum >= 0 &&
-    'unit' in value && (value.unit === 'kg' || value.unit === 'filter') &&
+    'unit' in value && typeof value.unit === 'string' && value.unit.trim().length > 0 &&
     'step' in value && typeof value.step === 'number' && Number.isFinite(value.step) && value.step > 0 &&
     'onRestockList' in value && typeof value.onRestockList === 'boolean'
   )
@@ -347,7 +347,7 @@ function App() {
   const [serviceLogs, setServiceLogs] = useState(readServiceLogs)
   const tasks = useMemo(() => initialTasks.filter((task) => !completedTaskIds.includes(task.id)), [completedTaskIds])
   const [query, setQuery] = useState('')
-  const [modal, setModal] = useState<'tool' | 'service' | null>(null)
+  const [modal, setModal] = useState<'tool' | 'service' | 'stock' | null>(null)
   const [menuOpen, setMenuOpen] = useState(false)
   const [toast, setToast] = useState('')
   const [notificationOpen, setNotificationOpen] = useState(false)
@@ -468,6 +468,36 @@ function App() {
       ? { ...stockItem, onRestockList: !stockItem.onRestockList }
       : stockItem))
     setToast(item.onRestockList ? `${item.name} removed from your restock list.` : `${item.name} added to your restock list.`)
+  }
+
+  function addStockItem(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const formData = new FormData(event.currentTarget)
+    const name = String(formData.get('name')).trim()
+    const quantity = Number(formData.get('quantity'))
+    const capacity = Number(formData.get('capacity'))
+    const minimum = Number(formData.get('minimum'))
+    const unit = String(formData.get('unit')).trim()
+    if (!name || !unit || !Number.isFinite(quantity) || !Number.isFinite(capacity) || !Number.isFinite(minimum) ||
+      quantity < 0 || capacity <= 0 || minimum < 0 || minimum > capacity) {
+      setToast('Enter a name and valid stock amounts. The low-stock threshold must not exceed capacity.')
+      return
+    }
+    const item: StockItem = {
+      id: `ST-${crypto.randomUUID()}`,
+      name,
+      location: String(formData.get('location')).trim() || 'Workshop',
+      quantity,
+      capacity,
+      minimum,
+      unit,
+      step: unit === 'kg' ? 0.1 : 1,
+      onRestockList: false,
+    }
+    setStockItems((items) => [...items, item])
+    setShowRestockOnly(false)
+    setModal(null)
+    setToast(`${name} added to workshop stock.`)
   }
 
   function addTool(event: FormEvent<HTMLFormElement>) {
@@ -691,9 +721,12 @@ function App() {
 
             <section className="panel stock-panel" id="stock">
               <GlassSurface active={theme === 'dark'} />
-              <div className="panel-heading">
+              <div className="panel-heading stock-heading">
                 <div><span className="section-eyebrow">BEFORE YOU RUN OUT</span><h2>On the shelf</h2></div>
-                <button className={`panel-more ${showRestockOnly ? 'panel-more-active' : ''}`} aria-label={showRestockOnly ? 'Show all stock' : 'Show restock list'} onClick={() => setShowRestockOnly((show) => !show)} type="button"><Filter size={16} /></button>
+                <div className="stock-heading-actions">
+                  <button className="filter-button" aria-label={showRestockOnly ? 'Show all stock' : 'Show restock list'} onClick={() => setShowRestockOnly((show) => !show)} type="button"><Filter size={14} /></button>
+                  <button className="filter-button" onClick={() => setModal('stock')} type="button"><Plus size={14} /> Add item</button>
+                </div>
               </div>
               {visibleStock.length > 0 ? visibleStock.map((item, index) => {
                 const isLow = item.quantity <= item.minimum
@@ -705,12 +738,12 @@ function App() {
                     {index > 0 && <div className="stock-divider" />}
                     <div className="stock-item">
                       <span className={`stock-image ${item.unit === 'kg' ? 'filament' : 'filter'}`}>
-                        {item.unit === 'kg' ? <span /> : <LifeBuoy size={19} strokeWidth={1.5} />}
+                        {item.unit === 'kg' ? <span /> : item.name.toLowerCase().includes('filter') ? <LifeBuoy size={19} strokeWidth={1.5} /> : <Box size={18} strokeWidth={1.5} />}
                       </span>
                       <div className="stock-info"><strong>{item.name}</strong><span>{item.location}</span></div>
                       <div className="stock-quantity">
-                        <strong>{quantityLabel} <small>{item.unit === 'kg' ? 'kg' : item.quantity === 1 ? 'filter' : 'filters'}</small></strong>
-                        <span>of {capacityLabel} {item.unit === 'kg' ? 'kg' : 'filters'}</span>
+                        <strong>{quantityLabel} <small>{item.unit}</small></strong>
+                        <span>of {capacityLabel} {item.unit}</span>
                         <div className="stock-controls">
                           <button aria-label={`Use ${item.step} ${item.unit} of ${item.name}`} disabled={item.quantity === 0} onClick={() => adjustStock(item.id, -item.step)} type="button"><Minus size={11} /></button>
                           <button aria-label={`Receive ${item.step} ${item.unit} of ${item.name}`} onClick={() => adjustStock(item.id, item.step)} type="button"><Plus size={11} /></button>
@@ -719,7 +752,7 @@ function App() {
                     </div>
                     <div className="stock-progress"><span className={item.unit === 'kg' ? 'progress-filament' : 'progress-filter'} style={{ width: `${progress}%` }} /></div>
                     <div className="stock-status">
-                      <span className={`status-pill ${isLow ? item.quantity === 0 ? 'status-low' : 'status-soon' : 'status-good'}`}><span />{item.quantity === 0 ? 'Out of stock' : isLow ? item.unit === 'kg' ? 'Running low' : 'Almost out' : 'In good shape'}</span>
+                      <span className={`status-pill ${isLow ? item.quantity === 0 ? 'status-low' : 'status-soon' : 'status-good'}`}><span />{item.quantity === 0 ? 'Out of stock' : isLow ? 'Running low' : 'In good shape'}</span>
                       <button aria-pressed={item.onRestockList} type="button" onClick={() => toggleRestock(item.id)}>{item.onRestockList ? 'On restock list' : 'Add to list'} <ArrowUpRight size={13} /></button>
                     </div>
                   </div>
@@ -877,7 +910,7 @@ function App() {
         {modal && (
           <motion.div className="modal-backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onMouseDown={(event) => { if (event.target === event.currentTarget) setModal(null) }}>
             <motion.div className="modal-card" initial={{ opacity: 0, y: 16, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 10, scale: 0.98 }}>
-              <div className="modal-heading"><div><span className="section-eyebrow">{modal === 'tool' ? 'MAKE IT PART OF THE WORKSHOP' : 'A LITTLE CARE GOES A LONG WAY'}</span><h2>{modal === 'tool' ? 'Add a tool' : 'Log a service'}</h2></div><button className="icon-button" aria-label="Close dialog" onClick={() => setModal(null)} type="button"><X size={18} /></button></div>
+              <div className="modal-heading"><div><span className="section-eyebrow">{modal === 'tool' ? 'MAKE IT PART OF THE WORKSHOP' : modal === 'stock' ? 'KEEP THE SHELF IN CHECK' : 'A LITTLE CARE GOES A LONG WAY'}</span><h2>{modal === 'tool' ? 'Add a tool' : modal === 'stock' ? 'Add stock item' : 'Log a service'}</h2></div><button className="icon-button" aria-label="Close dialog" onClick={() => setModal(null)} type="button"><X size={18} /></button></div>
               {modal === 'tool' ? (
                 <form className="modal-form" onSubmit={addTool}>
                   <label>Tool name<input autoFocus name="name" placeholder="e.g. Bandsaw" required /></label>
@@ -885,6 +918,21 @@ function App() {
                   <label>Make & model<input name="model" placeholder="e.g. Laguna · 14|BX" /></label>
                   <label>Where does it live?<input name="location" placeholder="e.g. East wall" /></label>
                   <div className="modal-actions"><button className="cancel-button" onClick={() => setModal(null)} type="button">Not now</button><button className="add-button" type="submit"><Plus size={15} /> Add to workshop</button></div>
+                </form>
+              ) : modal === 'stock' ? (
+                <form className="modal-form" onSubmit={addStockItem}>
+                  <label>Item name<input autoFocus name="name" placeholder="e.g. Sandpaper sheets" required /></label>
+                  <label>Stored with / location<input name="location" placeholder="e.g. Finishing cabinet" /></label>
+                  <div className="stock-form-row">
+                    <label>Current quantity<input name="quantity" type="number" min="0" step="any" defaultValue="0" required /></label>
+                    <label>Unit<select name="unit" defaultValue="pcs"><option value="pcs">pieces (pcs)</option><option value="kg">kilograms (kg)</option><option value="L">liters (L)</option><option value="m">meters (m)</option></select></label>
+                  </div>
+                  <div className="stock-form-row">
+                    <label>Capacity<input name="capacity" type="number" min="0.01" step="any" defaultValue="1" required /></label>
+                    <label>Low-stock threshold<input name="minimum" type="number" min="0" step="any" defaultValue="0" required /></label>
+                  </div>
+                  <p className="stock-form-hint">We’ll flag this item when its quantity reaches the low-stock threshold.</p>
+                  <div className="modal-actions"><button className="cancel-button" onClick={() => setModal(null)} type="button">Not now</button><button className="add-button" type="submit"><Plus size={15} /> Add to stock</button></div>
                 </form>
               ) : (
                 <form className="service-form" onSubmit={(event) => {

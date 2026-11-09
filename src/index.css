@@ -182,6 +182,9 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .all-done p { margin: 4px 0; color: #8b8d82; font-size: 9px; }
 
 .stock-panel { padding: 18px 16px 0; }
+.stock-heading-actions { display: flex; align-items: center; gap: 6px; }
+.stock-heading-actions .filter-button { justify-content: center; }
+.stock-heading-actions .filter-button[aria-label] { width: 29px; padding: 0; }
 .panel-more { display: grid; width: 28px; height: 28px; place-items: center; border: 0; border-radius: 5px; color: #929389; background: transparent; cursor: pointer; }
 .panel-more:hover { background: #f2f2ed; }
 .stock-item { display: flex; align-items: center; gap: 9px; margin-top: 17px; }
@@ -265,6 +268,8 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .modal-heading { display: flex; align-items: flex-start; justify-content: space-between; padding-bottom: 16px; border-bottom: 1px solid #ecece5; }
 .modal-heading h2 { margin-top: 6px; font-size: 20px; }
 .modal-form, .service-form { display: grid; gap: 13px; padding-top: 16px; }
+.stock-form-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.stock-form-hint { margin: -4px 0 0; color: #85877d; font-size: 9px; line-height: 1.5; }
 .modal-form label, .service-form label { display: grid; gap: 6px; color: #5b5e53; font-size: 10px; font-weight: 550; }
 .modal-form input, .modal-form select, .service-form select, .service-form textarea { width: 100%; min-height: 37px; padding: 8px 10px; border: 1px solid #e5e6de; border-radius: 6px; outline: 0; color: #3d4037; background: #fff; font-size: 10px; }
 .service-form textarea { resize: vertical; }
@@ -580,6 +585,8 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .app-shell[data-theme='dark'] .stock-quantity small { color: #abb9c8; }
 .app-shell[data-theme='dark'] .stock-controls button { border-color: #3b5062; color: #b7e7fb; background: #141f2a; }
 .app-shell[data-theme='dark'] .stock-controls button:hover:not(:disabled) { border-color: #4a7797; background: #1d2c3b; }
+.app-shell[data-theme='dark'] .stock-heading-actions .filter-button { border-color: #35485a; color: #c9d9e7; background: #101821; }
+.app-shell[data-theme='dark'] .stock-heading-actions .filter-button:hover { border-color: #4a7797; background: #162634; }
 .app-shell[data-theme='dark'] .stock-progress { background: #303b48; }
 .app-shell[data-theme='dark'] .stock-divider { background: #344252; }
 .app-shell[data-theme='dark'] .stock-all { border-color: #3c5266; color: #bcecff; background: #101b25; }
@@ -612,6 +619,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .app-shell[data-theme='dark'] .modal-heading, .app-shell[data-theme='dark'] .modal-actions { border-color: #344252; }
 .app-shell[data-theme='dark'] .modal-form label, .app-shell[data-theme='dark'] .service-form label { color: #c5d2df; }
 .app-shell[data-theme='dark'] .modal-form input, .app-shell[data-theme='dark'] .modal-form select, .app-shell[data-theme='dark'] .service-form select, .app-shell[data-theme='dark'] .service-form textarea { border-color: #364658; color: #e4edf7; background: #0c121a; }
+.app-shell[data-theme='dark'] .stock-form-hint { color: #a4b2c0; }
 .app-shell[data-theme='dark'] .modal-form input::placeholder, .app-shell[data-theme='dark'] .service-form textarea::placeholder { color: #8998a8; }
 .app-shell[data-theme='dark'] .cancel-button { border-color: #394b5e; color: #c5d2df; background: #141d27; }
 .app-shell[data-theme='dark'] .service-date { border-color: #364658; color: #adbac9; }
