@@ -7,8 +7,12 @@ import { supabaseConfigurationError } from '../lib/supabase'
 
 type AccountDialogProps = {
   client: SupabaseClient | null
+  hasLocalBackup: boolean
+  onDownloadBackup: () => void
   user: User | null
   sessionError: string
+  syncError: string
+  syncStatus: 'local' | 'loading' | 'synced' | 'error'
   onClose: () => void
 }
 
@@ -16,7 +20,16 @@ function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : 'An unexpected authentication error occurred.'
 }
 
-export default function AccountDialog({ client, user, sessionError, onClose }: AccountDialogProps) {
+export default function AccountDialog({
+  client,
+  hasLocalBackup,
+  onDownloadBackup,
+  user,
+  sessionError,
+  syncError,
+  syncStatus,
+  onClose,
+}: AccountDialogProps) {
   const [email, setEmail] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(sessionError)
@@ -103,9 +116,19 @@ export default function AccountDialog({ client, user, sessionError, onClose }: A
           {user ? (
             <div className="account-content">
               <p className="account-identity"><Mail size={15} />{user.email ?? 'Signed-in account'}</p>
-              <p className="account-note">Your account is connected, but workshop data is still stored only in this browser. Cloud sync is the next step.</p>
+              <p className="account-note">
+                {syncStatus === 'loading'
+                  ? 'Saving or loading your workshop data…'
+                  : syncStatus === 'error'
+                    ? 'Your latest workshop changes may not be available on other devices yet.'
+                    : 'Workshop changes sync automatically across your signed-in devices.'}
+              </p>
+              {syncError && <p className="account-feedback account-error" role="alert">{syncError}</p>}
               {error && <p className="account-feedback account-error" role="alert">{error}</p>}
               <div className="modal-actions">
+                {hasLocalBackup && (
+                  <button className="cancel-button" onClick={onDownloadBackup} type="button">Download local backup</button>
+                )}
                 <button className="cancel-button" onClick={onClose} type="button">Close</button>
                 <button className="add-button" disabled={busy} onClick={() => void signOut()} type="button">
                   <LogOut size={14} /> {busy ? 'Signing out…' : 'Sign out'}

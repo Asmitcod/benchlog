@@ -40,7 +40,7 @@ import {
   Wrench,
   X,
 } from 'lucide-react'
-import { lazy, Suspense, useEffect, useLayoutEffect, useMemo, useState } from 'react'
+import { lazy, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
 import AccountDialog from './components/AccountDialog'
@@ -103,6 +103,21 @@ type StockItem = {
   step: number
   onRestockList: boolean
 }
+
+type WorkshopSnapshot = {
+  tools: Tool[]
+  stockItems: StockItem[]
+  customMaintenanceTasks: CustomMaintenanceTask[]
+  completedTaskIds: number[]
+  serviceLogs: ServiceLog[]
+}
+
+type LocalSnapshotBackup = {
+  savedAt: string
+  snapshot: WorkshopSnapshot
+}
+
+type SyncStatus = 'local' | 'loading' | 'synced' | 'error'
 
 const initialStock: StockItem[] = [
   { id: 'PLA-001', name: 'PLA filament', location: 'Prusa MK4S · 1 kg spools', quantity: 0.3, capacity: 2, minimum: 0.5, unit: 'kg', step: 0.1, onRestockList: false },
@@ -286,6 +301,77 @@ function readServiceLogs(): ServiceLog[] {
   return []
 }
 
+function isWorkshopSnapshot(value: unknown): value is WorkshopSnapshot {
+  if (typeof value !== 'object' || value === null) return false
+  return (
+    'tools' in value && Array.isArray(value.tools) && value.tools.every(isTool) &&
+    'stockItems' in value && Array.isArray(value.stockItems) && value.stockItems.every(isStockItem) &&
+    'customMaintenanceTasks' in value &&
+      Array.isArray(value.customMaintenanceTasks) && value.customMaintenanceTasks.every(isCustomMaintenanceTask) &&
+    'completedTaskIds' in value &&
+      Array.isArray(value.completedTaskIds) && value.completedTaskIds.every((id) => Number.isInteger(id)) &&
+    'serviceLogs' in value && Array.isArray(value.serviceLogs) && value.serviceLogs.every(isServiceLog)
+  )
+}
+
+function isLocalSnapshotBackup(value: unknown): value is LocalSnapshotBackup {
+  if (typeof value !== 'object' || value === null) return false
+  return (
+    'savedAt' in value && typeof value.savedAt === 'string' &&
+    'snapshot' in value && isWorkshopSnapshot(value.snapshot)
+  )
+}
+
+function serializeSnapshot(value: unknown): string {
+  if (Array.isArray(value)) {
+    return `[${value.map(serializeSnapshot).join(',')}]`
+  }
+
+  if (typeof value === 'object' && value !== null) {
+    const properties = Object.entries(value)
+      .filter(([, propertyValue]) => propertyValue !== undefined)
+      .sort(([left], [right]) => left < right ? -1 : left > right ? 1 : 0)
+    return `{${properties.map(([key, propertyValue]) =>
+      `${JSON.stringify(key)}:${serializeSnapshot(propertyValue)}`).join(',')}}`
+  }
+
+  const serialized = JSON.stringify(value)
+  if (serialized === undefined) throw new Error('Workshop data could not be serialized.')
+  return serialized
+}
+
+function saveSnapshotToLocalStorage(snapshot: WorkshopSnapshot) {
+  localStorage.setItem('benchlog.tools', JSON.stringify(snapshot.tools))
+  localStorage.setItem('benchlog.stock', JSON.stringify(snapshot.stockItems))
+  localStorage.setItem('benchlog.custom-maintenance', JSON.stringify(snapshot.customMaintenanceTasks))
+  localStorage.setItem('benchlog.completed-tasks', JSON.stringify(snapshot.completedTaskIds))
+  localStorage.setItem('benchlog.service-logs', JSON.stringify(snapshot.serviceLogs))
+}
+
+function backupLocalSnapshot(userId: string, snapshot: WorkshopSnapshot) {
+  const key = `benchlog.local-backups.${userId}`
+  const saved = localStorage.getItem(key)
+  let backups: LocalSnapshotBackup[] = []
+
+  if (saved) {
+    try {
+      const value: unknown = JSON.parse(saved)
+      if (Array.isArray(value) && value.every(isLocalSnapshotBackup)) backups = value
+      else console.error('A saved local-data backup was invalid; starting a new backup list.')
+    } catch (error) {
+      if (!(error instanceof SyntaxError)) throw error
+      console.error('A saved local-data backup could not be read; starting a new backup list.', error)
+    }
+  }
+
+  const serializedSnapshot = serializeSnapshot(snapshot)
+  if (!backups.some((backup) => serializeSnapshot(backup.snapshot) === serializedSnapshot)) {
+    backups.push({ savedAt: new Date().toISOString(), snapshot })
+  }
+  localStorage.setItem(key, JSON.stringify(backups.slice(-10)))
+  return backups.length > 0
+}
+
 const initialTasks: ServiceTask[] = [
   { id: 1, tool: 'Prusa MK4S', action: 'Clean & lubricate linear rails', due: '2 days overdue', state: 'Overdue', icon: Settings2, color: 'peach' },
   { id: 2, tool: 'Table saw', action: 'Check blade alignment', due: 'Today', state: 'Today', icon: SlidersHorizontal, color: 'lavender' },
@@ -441,6 +527,172 @@ function App() {
   const [customMaintenanceTasks, setCustomMaintenanceTasks] = useState(readCustomMaintenanceTasks)
   const [completedTaskIds, setCompletedTaskIds] = useState(readCompletedTaskIds)
   const [serviceLogs, setServiceLogs] = useState(readServiceLogs)
+  const [syncStatus, setSyncStatus] = useState<SyncStatus>('local')
+  const [syncError, setSyncError] = useState('')
+  const [syncReadyFor, setSyncReadyFor] = useState<string | null>(null)
+  const [hasLocalBackup, setHasLocalBackup] = useState(false)
+  const [syncRetry, setSyncRetry] = useState(0)
+  const [loadRetry, setLoadRetry] = useState(0)
+  const syncRequest = useRef(0)
+  const lastCloudSnapshot = useRef<string | null>(null)
+  const userId = session?.user.id ?? null
+  const workshopSnapshot = useMemo<WorkshopSnapshot>(() => ({
+    tools,
+    stockItems,
+    customMaintenanceTasks,
+    completedTaskIds,
+    serviceLogs,
+  }), [completedTaskIds, customMaintenanceTasks, serviceLogs, stockItems, tools])
+  const workshopSnapshotRef = useRef(workshopSnapshot)
+
+  useEffect(() => {
+    workshopSnapshotRef.current = workshopSnapshot
+  }, [workshopSnapshot])
+
+  useEffect(() => {
+    const retrySync = () => {
+      if (userId && syncReadyFor !== userId) setLoadRetry((retry) => retry + 1)
+      else setSyncRetry((retry) => retry + 1)
+      setSyncError('')
+    }
+    window.addEventListener('online', retrySync)
+    return () => window.removeEventListener('online', retrySync)
+  }, [syncReadyFor, userId])
+
+  useEffect(() => {
+    const client = supabaseClient
+    if (!client || !userId) {
+      setSyncReadyFor(null)
+      setSyncStatus('local')
+      return
+    }
+
+    let active = true
+    setSyncReadyFor(null)
+    setSyncStatus('loading')
+    setSyncError('')
+
+    const applyCloudSnapshot = (value: unknown) => {
+      if (!active) return
+      if (!isWorkshopSnapshot(value)) {
+        throw new Error('The saved cloud workshop data is invalid. Your local data was left unchanged.')
+      }
+
+      const localSnapshot = workshopSnapshotRef.current
+      const cloudSnapshot = value
+      const localSerialized = serializeSnapshot(localSnapshot)
+      const cloudSerialized = serializeSnapshot(cloudSnapshot)
+      setHasLocalBackup(localStorage.getItem(`benchlog.local-backups.${userId}`) !== null)
+
+      if (localSerialized !== cloudSerialized) {
+        const backupAvailable = backupLocalSnapshot(userId, localSnapshot)
+        saveSnapshotToLocalStorage(cloudSnapshot)
+        setTools(cloudSnapshot.tools)
+        setStockItems(cloudSnapshot.stockItems)
+        setCustomMaintenanceTasks(cloudSnapshot.customMaintenanceTasks)
+        setCompletedTaskIds(cloudSnapshot.completedTaskIds)
+        setServiceLogs(cloudSnapshot.serviceLogs)
+        setHasLocalBackup(backupAvailable)
+      }
+
+      lastCloudSnapshot.current = cloudSerialized
+      setSyncReadyFor(userId)
+      setSyncStatus('synced')
+    }
+
+    const loadCloudSnapshot = async () => {
+      const { data, error } = await client
+        .from('workshop_snapshots')
+        .select('data')
+        .eq('owner_id', userId)
+        .maybeSingle()
+      if (error) throw error
+      if (!active) return
+      if (data) {
+        applyCloudSnapshot(data.data)
+        return
+      }
+
+      const localSnapshot = workshopSnapshotRef.current
+      const { error: insertError } = await client
+        .from('workshop_snapshots')
+        .insert({ owner_id: userId, data: localSnapshot })
+      if (!active) return
+
+      if (insertError?.code === '23505') {
+        const { data: existing, error: reloadError } = await client
+          .from('workshop_snapshots')
+          .select('data')
+          .eq('owner_id', userId)
+          .single()
+        if (reloadError) throw reloadError
+        applyCloudSnapshot(existing.data)
+        return
+      }
+      if (insertError) throw insertError
+
+      lastCloudSnapshot.current = serializeSnapshot(localSnapshot)
+      setSyncReadyFor(userId)
+      setSyncStatus('synced')
+    }
+
+    void loadCloudSnapshot().catch((error: unknown) => {
+      if (!active) return
+      console.error('BenchLog could not load workshop data from the cloud.', error)
+      setSyncError(error instanceof Error ? error.message : 'Could not load cloud workshop data.')
+      setSyncStatus('error')
+    })
+
+    return () => {
+      active = false
+      syncRequest.current += 1
+    }
+  }, [loadRetry, userId])
+
+  useEffect(() => {
+    const client = supabaseClient
+    if (!client || !userId || syncReadyFor !== userId) return
+
+    const serializedSnapshot = serializeSnapshot(workshopSnapshot)
+    if (serializedSnapshot === lastCloudSnapshot.current) return
+
+    const requestId = ++syncRequest.current
+    setSyncStatus('loading')
+    setSyncError('')
+    const timeout = window.setTimeout(() => {
+      const syncSnapshot = async () => {
+        try {
+          const { error } = await client
+            .from('workshop_snapshots')
+            .upsert({
+              owner_id: userId,
+              data: workshopSnapshot,
+              updated_at: new Date().toISOString(),
+            }, { onConflict: 'owner_id' })
+          if (requestId !== syncRequest.current) return
+          if (error) {
+            console.error('BenchLog could not sync workshop changes.', error)
+            setSyncError(error.message)
+            setSyncStatus('error')
+            return
+          }
+          lastCloudSnapshot.current = serializedSnapshot
+          setSyncStatus('synced')
+        } catch (error: unknown) {
+          if (requestId !== syncRequest.current) return
+          console.error('BenchLog could not sync workshop changes.', error)
+          setSyncError(error instanceof Error ? error.message : 'Could not sync workshop changes.')
+          setSyncStatus('error')
+        }
+      }
+      void syncSnapshot()
+    }, 500)
+
+    return () => {
+      window.clearTimeout(timeout)
+    }
+  }, [syncRetry, syncReadyFor, userId, workshopSnapshot])
+
   const tasks = useMemo(() => [
     ...initialTasks,
     ...customMaintenanceTasks.map((task): ServiceTask => ({
@@ -511,6 +763,20 @@ function App() {
   const profileTool = tools.find((tool) => tool.id === profileToolId)
   const accountEmail = session?.user.email ?? null
   const accountInitials = accountEmail ? accountEmail.slice(0, 2).toUpperCase() : 'L'
+  const syncStatusLabel = !accountEmail
+    ? 'Local-only data'
+    : syncStatus === 'loading'
+      ? 'Syncing workshop…'
+      : syncStatus === 'error'
+        ? 'Sync needs attention'
+        : 'Workshop synced'
+  const syncStatusDetail = !accountEmail
+    ? 'Stored in this browser'
+    : syncStatus === 'loading'
+      ? 'Saving your latest changes'
+      : syncStatus === 'error'
+        ? 'Cloud changes could not be saved'
+        : 'Available across your devices'
   const profileTasks = profileTool ? tasks.filter((task) => task.tool === profileTool.name) : []
   const profileServiceLogs = profileTool ? serviceLogs.filter((log) => log.tool === profileTool.name) : []
   const latestServiceLog = serviceLogs[0]
@@ -545,6 +811,38 @@ function App() {
     } catch (error) {
       console.error('Could not copy the tool profile link.', error)
       setToast('Could not copy the link. Check clipboard permissions and try again.')
+    }
+  }
+
+  function downloadLocalBackup() {
+    if (!userId) return
+
+    const saved = localStorage.getItem(`benchlog.local-backups.${userId}`)
+    if (!saved) {
+      setToast('No local workshop backup is available on this device.')
+      return
+    }
+
+    try {
+      const value: unknown = JSON.parse(saved)
+      if (!Array.isArray(value) || !value.every(isLocalSnapshotBackup)) {
+        console.error('The saved local workshop backup has an invalid format.')
+        setToast('The local workshop backup could not be downloaded because its data is invalid.')
+        return
+      }
+
+      const file = new Blob([JSON.stringify({ backups: value }, null, 2)], { type: 'application/json' })
+      const url = URL.createObjectURL(file)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = 'benchlog-local-backup.json'
+      link.click()
+      window.setTimeout(() => URL.revokeObjectURL(url), 0)
+      setToast('Your local workshop backup was downloaded.')
+    } catch (error) {
+      if (!(error instanceof SyntaxError)) throw error
+      console.error('The saved local workshop backup could not be read.', error)
+      setToast('The local workshop backup could not be read.')
     }
   }
 
@@ -751,8 +1049,8 @@ function App() {
         <div className="sidebar-bottom">
           <div className="offline-card">
             <span className="offline-icon"><ShieldCheck size={17} /></span>
-            <div><strong>{accountEmail ? 'Account connected' : 'Local-only data'}</strong><span>{accountEmail ? 'Cloud sync not enabled yet' : 'Stored in this browser'}</span></div>
-            <span className="online-dot" />
+            <div><strong>{syncStatusLabel}</strong><span>{syncStatusDetail}</span></div>
+            <span aria-label={syncStatus} className={`online-dot sync-dot sync-dot-${syncStatus}`} />
           </div>
           <button className="nav-link quiet-link" type="button" onClick={() => setToast('Settings are coming to your workshop.')}>
             <CircleHelp size={17} /><span>Help & feedback</span><ArrowUpRight size={14} className="quiet-arrow" />
@@ -1183,8 +1481,12 @@ function App() {
       {accountOpen && (
         <AccountDialog
           client={supabaseClient}
+          hasLocalBackup={hasLocalBackup}
+          onDownloadBackup={downloadLocalBackup}
           onClose={() => setAccountOpen(false)}
           sessionError={authSessionError}
+          syncError={syncError}
+          syncStatus={syncStatus}
           user={session?.user ?? null}
         />
       )}
