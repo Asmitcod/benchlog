@@ -245,6 +245,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .tool-photo-rose { background: radial-gradient(ellipse at 51% 65%, #d2b4a8 0, transparent 58%), linear-gradient(145deg, #eee3d7, #cdb9aa); }
 .tool-photo-blue { background: radial-gradient(ellipse at 48% 72%, #a9b5ad 0, transparent 57%), linear-gradient(145deg, #e2e2d7, #b6c1ba); }
 .tool-illustration { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; filter: drop-shadow(0 5px 3px #343b2b1c); }
+.tool-glyph { position: absolute; inset: 0; display: grid; place-items: center; color: #435b68; filter: drop-shadow(0 4px 3px #343b2b20); }
 .tool-status { position: absolute; top: 7px; left: 7px; z-index: 1; display: flex; align-items: center; gap: 5px; padding: 4px 6px; border: 1px solid #ffffffa6; border-radius: 4px; color: #495344; background: #f9fbf0eF; font-size: 7px; font-weight: 550; }
 .tool-status > span { width: 5px; height: 5px; border-radius: 50%; background: #85a26d; }
 .tool-status-due { color: #976c51; background: #fff8f1ed; }
@@ -305,6 +306,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .profile-modal-heading { display: flex; align-items: center; gap: 15px; padding: 20px 22px; border-bottom: 1px solid #ecece5; }
 .profile-illustration { position: relative; width: 72px; height: 60px; flex: 0 0 72px; overflow: hidden; border: 1px solid #e9e9e2; border-radius: 8px; }
 .profile-illustration .tool-illustration { inset: 3px 0; height: calc(100% - 6px); }
+.profile-illustration .tool-glyph svg { width: 38px; height: 38px; }
 .profile-title-block { min-width: 0; flex: 1; }
 .profile-title-block .section-eyebrow { gap: 7px; }
 .profile-title-block h2 { margin: 5px 0 2px; color: #30332b; font-family: Manrope, sans-serif; font-size: 21px; font-weight: 700; letter-spacing: -.7px; }
@@ -626,6 +628,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .app-shell[data-theme='dark'] .tool-photo-sand { background: radial-gradient(ellipse at 46% 75%, #344457 0, transparent 56%), linear-gradient(145deg, #25313e, #18212b); }
 .app-shell[data-theme='dark'] .tool-photo-rose { background: radial-gradient(ellipse at 51% 65%, #493549 0, transparent 58%), linear-gradient(145deg, #2d2637, #1d1b27); }
 .app-shell[data-theme='dark'] .tool-photo-blue { background: radial-gradient(ellipse at 48% 72%, #294b5a 0, transparent 57%), linear-gradient(145deg, #1e3442, #121d28); }
+.app-shell[data-theme='dark'] .tool-glyph { color: #b6d6e5; }
 .app-shell[data-theme='dark'] .tool-status { border-color: #38536a; color: #c9ecff; background: #142635ef; }
 .app-shell[data-theme='dark'] .tool-status-due { border-color: #76533c; color: #ffd1b2; background: #38281fee; }
 .app-shell[data-theme='dark'] .tool-card-copy strong { color: #e2ecf6; }

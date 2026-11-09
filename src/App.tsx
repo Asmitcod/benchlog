@@ -5,8 +5,13 @@ import {
   ArrowDownRight,
   ArrowRight,
   ArrowUpRight,
+  Anvil,
+  Axe,
   Bell,
   Box,
+  Briefcase,
+  Boxes,
+  Cable,
   CalendarDays,
   Check,
   ChevronDown,
@@ -18,6 +23,10 @@ import {
   ExternalLink,
   FileText,
   Filter,
+  File,
+  Flashlight,
+  Glasses,
+  Grip,
   Hammer,
   History,
   LayoutDashboard,
@@ -27,12 +36,20 @@ import {
   MoreHorizontal,
   Plus,
   Printer,
+  PocketKnife,
+  PencilRuler,
+  Ruler,
+  RulerDimensionLine,
   QrCode,
+  Screw,
+  Scissors,
   Search,
   ShieldCheck,
   Sparkles,
   Sun,
   Moon,
+  Nut,
+  Wrench as WrenchIcon,
   Trash2,
   UserRound,
   Wrench,
@@ -52,7 +69,11 @@ type Tool = {
   model: string
   location: string
   status: 'Good' | 'Due soon' | 'Overdue'
-  illustration: 'saw' | 'printer' | 'drill'
+  illustration:
+    | 'saw' | 'printer' | 'drill'
+    | 'hammer' | 'screw' | 'wrench' | 'cable' | 'ruler' | 'pocket-knife'
+    | 'ruler-dimension-line' | 'nut' | 'grip' | 'scissors' | 'file'
+    | 'pencil-ruler' | 'anvil' | 'axe' | 'flashlight' | 'glasses' | 'briefcase' | 'boxes'
   color: string
 }
 
@@ -151,27 +172,36 @@ function readStockItems(): StockItem[] {
 }
 
 const initialTools: Tool[] = [
-  { id: 'TL-001', name: 'Hammer', category: 'Woodworking', model: 'General purpose', location: 'Workshop', status: 'Good', illustration: 'drill', color: 'blue' },
-  { id: 'TL-002', name: 'Screwdriver set', category: 'Other', model: 'Flathead and Phillips', location: 'Workshop', status: 'Good', illustration: 'drill', color: 'blue' },
-  { id: 'TL-003', name: 'Adjustable wrench', category: 'Metalworking', model: 'General purpose', location: 'Workshop', status: 'Good', illustration: 'drill', color: 'blue' },
-  { id: 'TL-004', name: 'Pliers', category: 'Other', model: 'Combination pliers', location: 'Workshop', status: 'Good', illustration: 'drill', color: 'blue' },
-  { id: 'TL-005', name: 'Tape measure', category: 'Woodworking', model: '5 m / 16 ft', location: 'Workshop', status: 'Good', illustration: 'drill', color: 'blue' },
-  { id: 'TL-006', name: 'Utility knife', category: 'Other', model: 'Retractable blade', location: 'Workshop', status: 'Good', illustration: 'drill', color: 'blue' },
+  { id: 'TL-001', name: 'Hammer', category: 'Woodworking', model: 'General purpose', location: 'Workshop', status: 'Good', illustration: 'hammer', color: 'blue' },
+  { id: 'TL-002', name: 'Screwdriver set', category: 'Other', model: 'Flathead and Phillips', location: 'Workshop', status: 'Good', illustration: 'screw', color: 'blue' },
+  { id: 'TL-003', name: 'Adjustable wrench', category: 'Metalworking', model: 'General purpose', location: 'Workshop', status: 'Good', illustration: 'wrench', color: 'blue' },
+  { id: 'TL-004', name: 'Pliers', category: 'Other', model: 'Combination pliers', location: 'Workshop', status: 'Good', illustration: 'cable', color: 'blue' },
+  { id: 'TL-005', name: 'Tape measure', category: 'Woodworking', model: '5 m / 16 ft', location: 'Workshop', status: 'Good', illustration: 'ruler', color: 'blue' },
+  { id: 'TL-006', name: 'Utility knife', category: 'Other', model: 'Retractable blade', location: 'Workshop', status: 'Good', illustration: 'pocket-knife', color: 'blue' },
   { id: 'TL-007', name: 'Cordless drill', category: 'Woodworking', model: 'General purpose', location: 'Workshop', status: 'Good', illustration: 'drill', color: 'blue' },
   { id: 'TL-008', name: 'Hand saw', category: 'Woodworking', model: 'General purpose', location: 'Workshop', status: 'Good', illustration: 'saw', color: 'sand' },
-  { id: 'TL-009', name: 'Spirit level', category: 'Other', model: '45 cm / 18 in', location: 'Workshop', status: 'Good', illustration: 'drill', color: 'blue' },
-  { id: 'TL-010', name: 'Socket set', category: 'Metalworking', model: 'Metric set', location: 'Workshop', status: 'Good', illustration: 'drill', color: 'blue' },
-  { id: 'TL-011', name: 'Hex key set', category: 'Other', model: 'Metric set', location: 'Workshop', status: 'Good', illustration: 'drill', color: 'blue' },
-  { id: 'TL-012', name: 'Clamps', category: 'Woodworking', model: 'General purpose', location: 'Workshop', status: 'Good', illustration: 'drill', color: 'blue' },
-  { id: 'TL-013', name: 'Scissors', category: 'Other', model: 'General purpose', location: 'Workshop', status: 'Good', illustration: 'drill', color: 'blue' },
-  { id: 'TL-014', name: 'Metal file', category: 'Metalworking', model: 'Flat file', location: 'Workshop', status: 'Good', illustration: 'drill', color: 'blue' },
-  { id: 'TL-015', name: 'Wood chisel set', category: 'Woodworking', model: 'General purpose', location: 'Workshop', status: 'Good', illustration: 'drill', color: 'blue' },
-  { id: 'TL-016', name: 'Rubber mallet', category: 'Woodworking', model: 'General purpose', location: 'Workshop', status: 'Good', illustration: 'drill', color: 'blue' },
-  { id: 'TL-017', name: 'Combination wrench set', category: 'Metalworking', model: 'Metric set', location: 'Workshop', status: 'Good', illustration: 'drill', color: 'blue' },
-  { id: 'TL-018', name: 'Flashlight', category: 'Other', model: 'Handheld', location: 'Workshop', status: 'Good', illustration: 'drill', color: 'blue' },
-  { id: 'TL-019', name: 'Safety glasses', category: 'Other', model: 'Protective eyewear', location: 'Workshop', status: 'Good', illustration: 'drill', color: 'blue' },
-  { id: 'TL-020', name: 'Toolbox', category: 'Other', model: 'General purpose', location: 'Workshop', status: 'Good', illustration: 'drill', color: 'blue' },
+  { id: 'TL-009', name: 'Spirit level', category: 'Other', model: '45 cm / 18 in', location: 'Workshop', status: 'Good', illustration: 'ruler-dimension-line', color: 'blue' },
+  { id: 'TL-010', name: 'Socket set', category: 'Metalworking', model: 'Metric set', location: 'Workshop', status: 'Good', illustration: 'nut', color: 'blue' },
+  { id: 'TL-011', name: 'Hex key set', category: 'Other', model: 'Metric set', location: 'Workshop', status: 'Good', illustration: 'grip', color: 'blue' },
+  { id: 'TL-012', name: 'Clamps', category: 'Woodworking', model: 'General purpose', location: 'Workshop', status: 'Good', illustration: 'anvil', color: 'blue' },
+  { id: 'TL-013', name: 'Scissors', category: 'Other', model: 'General purpose', location: 'Workshop', status: 'Good', illustration: 'scissors', color: 'blue' },
+  { id: 'TL-014', name: 'Metal file', category: 'Metalworking', model: 'Flat file', location: 'Workshop', status: 'Good', illustration: 'file', color: 'blue' },
+  { id: 'TL-015', name: 'Wood chisel set', category: 'Woodworking', model: 'General purpose', location: 'Workshop', status: 'Good', illustration: 'pencil-ruler', color: 'blue' },
+  { id: 'TL-016', name: 'Rubber mallet', category: 'Woodworking', model: 'General purpose', location: 'Workshop', status: 'Good', illustration: 'axe', color: 'blue' },
+  { id: 'TL-017', name: 'Combination wrench set', category: 'Metalworking', model: 'Metric set', location: 'Workshop', status: 'Good', illustration: 'briefcase', color: 'blue' },
+  { id: 'TL-018', name: 'Flashlight', category: 'Other', model: 'Handheld', location: 'Workshop', status: 'Good', illustration: 'flashlight', color: 'blue' },
+  { id: 'TL-019', name: 'Safety glasses', category: 'Other', model: 'Protective eyewear', location: 'Workshop', status: 'Good', illustration: 'glasses', color: 'blue' },
+  { id: 'TL-020', name: 'Toolbox', category: 'Other', model: 'General purpose', location: 'Workshop', status: 'Good', illustration: 'boxes', color: 'blue' },
 ]
+
+const starterIllustrations = new Map(initialTools.map((tool) => [`${tool.id}:${tool.name}`, tool.illustration]))
+
+function applyStarterToolIllustrations(tools: Tool[]) {
+  return tools.map((tool) => {
+    const illustration = starterIllustrations.get(`${tool.id}:${tool.name}`)
+    return illustration ? { ...tool, illustration } : tool
+  })
+}
 
 function isBundledSampleStock(item: StockItem) {
   return (item.id === 'PLA-001' && item.name === 'PLA filament' && item.location === 'Prusa MK4S · 1 kg spools') ||
@@ -200,7 +230,13 @@ function isTool(value: unknown): value is Tool {
     'status' in value &&
     (value.status === 'Good' || value.status === 'Due soon' || value.status === 'Overdue') &&
     'illustration' in value &&
-    (value.illustration === 'saw' || value.illustration === 'printer' || value.illustration === 'drill') &&
+    (value.illustration === 'saw' || value.illustration === 'printer' || value.illustration === 'drill' ||
+      value.illustration === 'hammer' || value.illustration === 'screw' || value.illustration === 'wrench' ||
+      value.illustration === 'cable' || value.illustration === 'ruler' || value.illustration === 'pocket-knife' ||
+      value.illustration === 'ruler-dimension-line' || value.illustration === 'nut' || value.illustration === 'grip' ||
+      value.illustration === 'scissors' || value.illustration === 'file' || value.illustration === 'pencil-ruler' ||
+      value.illustration === 'anvil' || value.illustration === 'axe' || value.illustration === 'flashlight' ||
+      value.illustration === 'glasses' || value.illustration === 'briefcase' || value.illustration === 'boxes') &&
     'color' in value &&
     typeof value.color === 'string'
   )
@@ -212,7 +248,7 @@ function readSavedTools(): Tool[] {
   try {
     const value: unknown = JSON.parse(saved)
     if (Array.isArray(value) && value.every(isTool)) {
-      const savedTools = value.filter((tool) => !isBundledSampleTool(tool))
+      const savedTools = applyStarterToolIllustrations(value.filter((tool) => !isBundledSampleTool(tool)))
       return savedTools.length > 0 ? savedTools : initialTools
     }
   } catch (error) {
@@ -319,7 +355,7 @@ function isWorkshopSnapshot(value: unknown): value is WorkshopSnapshot {
 }
 
 function removeBundledSampleData(snapshot: WorkshopSnapshot): WorkshopSnapshot {
-  const savedTools = snapshot.tools.filter((tool) => !isBundledSampleTool(tool))
+  const savedTools = applyStarterToolIllustrations(snapshot.tools.filter((tool) => !isBundledSampleTool(tool)))
   return {
     ...snapshot,
     tools: savedTools.length > 0 ? savedTools : initialTools,
@@ -461,7 +497,33 @@ function GlassSurface({ active }: { active: boolean }) {
   return active ? <Glass className="glisse-panel-surface" aria-hidden="true" /> : null
 }
 
+const toolGlyphs: Partial<Record<Tool['illustration'], typeof Hammer>> = {
+  hammer: Hammer,
+  screw: Screw,
+  wrench: WrenchIcon,
+  cable: Cable,
+  ruler: Ruler,
+  'pocket-knife': PocketKnife,
+  'ruler-dimension-line': RulerDimensionLine,
+  nut: Nut,
+  grip: Grip,
+  scissors: Scissors,
+  file: File,
+  'pencil-ruler': PencilRuler,
+  anvil: Anvil,
+  axe: Axe,
+  flashlight: Flashlight,
+  glasses: Glasses,
+  briefcase: Briefcase,
+  boxes: Boxes,
+}
+
 function ToolIllustration({ type }: { type: Tool['illustration'] }) {
+  const Glyph = toolGlyphs[type]
+  if (Glyph) {
+    return <span className={`tool-glyph tool-glyph-${type}`} aria-hidden="true"><Glyph size={48} strokeWidth={1.5} /></span>
+  }
+
   return (
     <svg className={`tool-illustration illustration-${type}`} viewBox="0 0 280 130" aria-hidden="true">
       {type === 'saw' && (
