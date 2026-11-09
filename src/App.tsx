@@ -14,6 +14,8 @@ import {
   CircleHelp,
   Clock3,
   Command,
+  Copy,
+  ExternalLink,
   FileText,
   Filter,
   Hammer,
@@ -22,6 +24,8 @@ import {
   Menu,
   MoreHorizontal,
   Plus,
+  Printer,
+  QrCode,
   Search,
   Settings2,
   ShieldCheck,
@@ -34,6 +38,7 @@ import {
 } from 'lucide-react'
 import { lazy, Suspense, useEffect, useLayoutEffect, useMemo, useState } from 'react'
 import type { FormEvent } from 'react'
+import { QRCodeSVG } from 'qrcode.react'
 
 type Tool = {
   id: string
@@ -155,6 +160,17 @@ const todayLabel = new Intl.DateTimeFormat('en', { weekday: 'long', month: 'long
   .toUpperCase()
 const shortDate = new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric' }).format(today)
 
+function readToolIdFromHash() {
+  const match = window.location.hash.match(/^#tool\/(.+)$/)
+  if (!match) return null
+  try {
+    return decodeURIComponent(match[1])
+  } catch (error) {
+    if (!(error instanceof URIError)) throw error
+    return null
+  }
+}
+
 function GlassSurface({ active }: { active: boolean }) {
   return active ? <Glass className="glisse-panel-surface" aria-hidden="true" /> : null
 }
@@ -236,6 +252,7 @@ function App() {
   const [toast, setToast] = useState('')
   const [notificationOpen, setNotificationOpen] = useState(false)
   const [selectedTask, setSelectedTask] = useState<number | null>(null)
+  const [profileToolId, setProfileToolId] = useState(readToolIdFromHash)
 
   useEffect(() => {
     if (!toast) return
@@ -256,6 +273,12 @@ function App() {
     localStorage.setItem('benchlog.completed-tasks', JSON.stringify(completedTaskIds))
   }, [completedTaskIds])
 
+  useEffect(() => {
+    const syncProfileFromUrl = () => setProfileToolId(readToolIdFromHash())
+    window.addEventListener('hashchange', syncProfileFromUrl)
+    return () => window.removeEventListener('hashchange', syncProfileFromUrl)
+  }, [])
+
   const filteredTools = useMemo(
     () =>
       tools.filter((tool) =>
@@ -263,6 +286,36 @@ function App() {
       ),
     [query, tools],
   )
+  const profileTool = tools.find((tool) => tool.id === profileToolId)
+  const profileTasks = profileTool ? tasks.filter((task) => task.tool === profileTool.name) : []
+  const profileUrl = useMemo(() => {
+    if (!profileTool) return ''
+    const url = new URL(window.location.href)
+    url.hash = `tool/${encodeURIComponent(profileTool.id)}`
+    return url.toString()
+  }, [profileTool])
+
+  function setProfileRoute(toolId: string | null) {
+    const url = new URL(window.location.href)
+    url.hash = toolId ? `tool/${encodeURIComponent(toolId)}` : ''
+    window.history.pushState(null, '', url)
+    setProfileToolId(toolId)
+  }
+
+  function openService(taskId?: number) {
+    setSelectedTask(taskId ?? null)
+    setModal('service')
+  }
+
+  async function copyProfileLink() {
+    try {
+      await navigator.clipboard.writeText(profileUrl)
+      setToast('Tool link copied. It opens this profile on this device.')
+    } catch (error) {
+      console.error('Could not copy the tool profile link.', error)
+      setToast('Could not copy the link. Check clipboard permissions and try again.')
+    }
+  }
 
   function completeService(id: number) {
     const task = tasks.find((item) => item.id === id)
@@ -480,7 +533,7 @@ function App() {
                       <span className={`task-icon ${task.color}`}><Icon size={17} strokeWidth={1.8} /></span>
                       <div className="task-main"><strong>{task.action}</strong><span>{task.tool}</span></div>
                       <span className={`task-due ${task.state === 'Overdue' ? 'due-overdue' : ''}`}>{task.due}</span>
-                      <button className="task-done" aria-label={`Log service: ${task.action}`} onClick={() => { setSelectedTask(task.id); setModal('service') }} type="button"><Check size={15} /><span>Log it</span></button>
+                      <button className="task-done" aria-label={`Log service: ${task.action}`} onClick={() => openService(task.id)} type="button"><Check size={15} /><span>Log it</span></button>
                     </motion.article>
                   )
                 })}
@@ -527,7 +580,7 @@ function App() {
             ) : (
               <div className="tool-grid">
                 {filteredTools.map((tool, index) => (
-                  <motion.button className="tool-card" key={tool.id} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.08 * index }} onClick={() => setToast(`${tool.name} · ${tool.model} · ${tool.location}`)} type="button">
+                  <motion.button className="tool-card" key={tool.id} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.08 * index }} onClick={() => setProfileRoute(tool.id)} type="button">
                     <div className={`tool-photo tool-photo-${tool.color}`}>
                       <ToolIllustration type={tool.illustration} />
                       <span className={`tool-status ${tool.status === 'Due soon' ? 'tool-status-due' : ''}`}><span />{tool.status === 'Good' ? 'In good shape' : tool.status}</span>
@@ -546,6 +599,92 @@ function App() {
           <footer className="page-footer"><span>MADE FOR THE THINGS YOU MAKE <span className="footer-heart">✳</span></span><span>BENCHLOG <span className="footer-version">· YOUR WORKSHOP, REMEMBERED</span></span></footer>
         </div>
       </main>
+
+      <AnimatePresence>
+        {profileTool && (
+          <motion.div
+            className="modal-backdrop profile-backdrop"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onMouseDown={(event) => { if (event.target === event.currentTarget) setProfileRoute(null) }}
+          >
+            <motion.section
+              aria-labelledby="profile-title"
+              aria-modal="true"
+              className="profile-modal"
+              initial={{ opacity: 0, y: 16, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 10, scale: 0.98 }}
+              role="dialog"
+            >
+              <header className="profile-modal-heading">
+                <div className={`profile-illustration tool-photo-${profileTool.color}`}><ToolIllustration type={profileTool.illustration} /></div>
+                <div className="profile-title-block">
+                  <span className="section-eyebrow">{profileTool.category.toUpperCase()} <span>·</span> {profileTool.id}</span>
+                  <h2 id="profile-title">{profileTool.name}</h2>
+                  <p>{profileTool.model}</p>
+                </div>
+                <button className="icon-button profile-close" aria-label="Close tool profile" onClick={() => setProfileRoute(null)} type="button"><X size={18} /></button>
+              </header>
+
+              <div className="profile-content">
+                <div className="profile-main-column">
+                  <div className="profile-facts">
+                    <div><span>LOCATION</span><strong>{profileTool.location}</strong></div>
+                    <div><span>CONDITION</span><strong className={`profile-condition ${profileTool.status === 'Good' ? '' : 'condition-due'}`}><i />{profileTool.status === 'Good' ? 'In good shape' : profileTool.status}</strong></div>
+                    <div><span>PROFILE ID</span><strong className="profile-id">{profileTool.id}</strong></div>
+                  </div>
+
+                  <section className="profile-maintenance">
+                    <div className="profile-section-heading">
+                      <div><span className="section-eyebrow">KEEP IT RUNNING</span><h3>Maintenance</h3></div>
+                      <span className="profile-task-count">{profileTasks.length} due</span>
+                    </div>
+                    {profileTasks.length > 0 ? profileTasks.map((task) => {
+                      const Icon = task.icon
+                      return (
+                        <div className="profile-task" key={task.id}>
+                          <span className={`task-icon ${task.color}`}><Icon size={16} /></span>
+                          <div><strong>{task.action}</strong><span>{task.due}</span></div>
+                          <button className="profile-log-button" onClick={() => { setProfileRoute(null); openService(task.id) }} type="button">Log service</button>
+                        </div>
+                      )
+                    }) : (
+                      <div className="profile-empty"><Check size={16} /><span>No maintenance is due right now.</span></div>
+                    )}
+                  </section>
+
+                  <section className="profile-documents">
+                    <div className="profile-section-heading">
+                      <div><span className="section-eyebrow">ON HAND WHEN YOU NEED IT</span><h3>Documents</h3></div>
+                    </div>
+                    <button className="profile-document-row" onClick={() => setToast('Attach a manual when document storage is connected.')} type="button">
+                      <span><FileText size={16} /></span><div><strong>Keep the manual close</strong><small>Add a PDF, photo, or useful link</small></div><Plus size={15} />
+                    </button>
+                  </section>
+                </div>
+
+                <aside className="profile-qr-column">
+                  <div className="qr-print-label">
+                    <div className="qr-heading"><span><QrCode size={16} /> BENCHLOG TOOL TAG</span><span className="qr-tag-id">{profileTool.id}</span></div>
+                    <div className="qr-code"><QRCodeSVG value={profileUrl} size={160} level="M" marginSize={2} /></div>
+                    <strong className="qr-tool-name">{profileTool.name}</strong>
+                    <span className="qr-instruction">SCAN TO OPEN THIS TOOL PROFILE</span>
+                    <span className="qr-link">{profileUrl}</span>
+                  </div>
+                  <p className="qr-note">This QR opens this profile in this browser. Add it to the deployed app to scan it from another device.</p>
+                  <div className="qr-actions">
+                    <button className="add-button" onClick={() => window.print()} type="button"><Printer size={15} /> Print tool tag</button>
+                    <button className="cancel-button" onClick={copyProfileLink} type="button"><Copy size={14} /> Copy link</button>
+                  </div>
+                  <a className="profile-open-link" href={profileUrl} target="_blank" rel="noreferrer">Open profile link <ExternalLink size={13} /></a>
+                </aside>
+              </div>
+            </motion.section>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <AnimatePresence>
         {modal && (
