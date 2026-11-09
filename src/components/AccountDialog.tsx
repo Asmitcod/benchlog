@@ -46,7 +46,9 @@ export default function AccountDialog({
     try {
       const { error: signInError } = await client.auth.signInWithOtp({
         email: email.trim(),
-        options: { emailRedirectTo: window.location.origin },
+        options: {
+          emailRedirectTo: new URL(import.meta.env.BASE_URL, window.location.origin).toString(),
+        },
       })
       if (signInError) {
         console.error('BenchLog could not send the sign-in link.', signInError)
