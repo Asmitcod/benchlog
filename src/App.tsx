@@ -1415,27 +1415,40 @@ function App() {
                   <div className="modal-actions"><button className="cancel-button" onClick={() => setModal(null)} type="button">Not now</button><button className="add-button" type="submit"><Plus size={15} /> Add to stock</button></div>
                 </form>
               ) : modal === 'maintenance' ? (
-                <form className="modal-form" onSubmit={addMaintenanceTask}>
-                  <label>What needs doing?<input autoFocus name="action" placeholder="e.g. Clean the dust filter" required /></label>
-                  <label>Which tool?
-                    <select name="tool" defaultValue={tools[0]?.name ?? ''} required>
-                      {tools.map((tool) => <option key={tool.id} value={tool.name}>{tool.name}</option>)}
-                    </select>
-                  </label>
-                  <label>Due date<input name="dueAt" type="date" value={taskDueDate} onChange={(event) => setTaskDueDate(event.target.value)} required /></label>
-                  <label>Repeat
-                    <select name="recurrence" defaultValue="none">
-                      <option value="none">Does not repeat</option>
-                      <option value="weekly">Every week</option>
-                      <option value="monthly">Every month</option>
-                      <option value="quarterly">Every 3 months</option>
-                      <option value="yearly">Every year</option>
-                    </select>
-                  </label>
-                  <div className="modal-actions"><button className="cancel-button" onClick={() => setModal(null)} type="button">Not now</button><button className="add-button" type="submit"><CalendarDays size={15} /> Save reminder</button></div>
-                </form>
+                tools.length > 0 ? (
+                  <form className="modal-form" onSubmit={addMaintenanceTask}>
+                    <label>What needs doing?<input autoFocus name="action" placeholder="e.g. Clean the dust filter" required /></label>
+                    <label>Which tool?
+                      <select name="tool" defaultValue="" required>
+                        <option value="" disabled>Choose a tool</option>
+                        {tools.map((tool) => <option key={tool.id} value={tool.name}>{tool.name}</option>)}
+                      </select>
+                    </label>
+                    <label>Due date<input name="dueAt" type="date" value={taskDueDate} onChange={(event) => setTaskDueDate(event.target.value)} required /></label>
+                    <label>Repeat
+                      <select name="recurrence" defaultValue="none">
+                        <option value="none">Does not repeat</option>
+                        <option value="weekly">Every week</option>
+                        <option value="monthly">Every month</option>
+                        <option value="quarterly">Every 3 months</option>
+                        <option value="yearly">Every year</option>
+                      </select>
+                    </label>
+                    <div className="modal-actions"><button className="cancel-button" onClick={() => setModal(null)} type="button">Not now</button><button className="add-button" type="submit"><CalendarDays size={15} /> Save reminder</button></div>
+                  </form>
+                ) : (
+                  <div className="form-empty-state">
+                    <p>Add a tool to your workshop first. Then you can attach maintenance reminders to it.</p>
+                    <button className="add-button" onClick={() => setModal('tool')} type="button"><Plus size={15} /> Add a tool</button>
+                  </div>
+                )
               ) : (
-                <form className="service-form" onSubmit={(event) => {
+                tools.length === 0 ? (
+                  <div className="form-empty-state">
+                    <p>Add a tool to your workshop before logging a service.</p>
+                    <button className="add-button" onClick={() => setModal('tool')} type="button"><Plus size={15} /> Add a tool</button>
+                  </div>
+                ) : <form className="service-form" onSubmit={(event) => {
                   event.preventDefault()
                   if (selectedTask === null) {
                     setToast('Pick a task to add it to your service history.')
@@ -1458,7 +1471,7 @@ function App() {
                   }}><option value="">Pick a maintenance task</option>{tasks.map((task) => <option key={task.id} value={task.id}>{task.tool} — {task.action}</option>)}<option value="manual">Other service (no reminder)</option></select></label>
                   {selectedTask === 'manual' && (
                     <>
-                      <label>Which tool?<select value={manualServiceTool} onChange={(event) => setManualServiceTool(event.target.value)} required>{tools.map((tool) => <option key={tool.id} value={tool.name}>{tool.name}</option>)}</select></label>
+                      <label>Which tool?<select value={manualServiceTool} onChange={(event) => setManualServiceTool(event.target.value)} required><option value="" disabled>Choose a tool</option>{tools.map((tool) => <option key={tool.id} value={tool.name}>{tool.name}</option>)}</select></label>
                       <label>Service performed<input autoFocus name="action" placeholder="e.g. Replaced the drive belt" required /></label>
                     </>
                   )}
