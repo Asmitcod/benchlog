@@ -81,7 +81,7 @@ type CustomMaintenanceTask = {
 
 type ServiceLog = {
   id: string
-  taskId: number
+  taskId: number | null
   tool: string
   action: string
   note: string
@@ -254,8 +254,7 @@ function isServiceLog(value: unknown): value is ServiceLog {
     'id' in value &&
     typeof value.id === 'string' &&
     'taskId' in value &&
-    typeof value.taskId === 'number' &&
-    Number.isInteger(value.taskId) &&
+    (value.taskId === null || (typeof value.taskId === 'number' && Number.isInteger(value.taskId))) &&
     'tool' in value &&
     typeof value.tool === 'string' &&
     'action' in value &&
@@ -452,8 +451,9 @@ function App() {
   const [menuOpen, setMenuOpen] = useState(false)
   const [toast, setToast] = useState('')
   const [notificationOpen, setNotificationOpen] = useState(false)
-  const [selectedTask, setSelectedTask] = useState<number | null>(null)
+  const [selectedTask, setSelectedTask] = useState<number | 'manual' | null>(null)
   const [serviceNote, setServiceNote] = useState('')
+  const [manualServiceTool, setManualServiceTool] = useState(tools[0]?.name ?? '')
   const [profileToolId, setProfileToolId] = useState(readToolIdFromHash)
   const [showRestockOnly, setShowRestockOnly] = useState(false)
   const [taskDueDate, setTaskDueDate] = useState(() => localDateValue(new Date()))
@@ -526,6 +526,7 @@ function App() {
   function openService(taskId?: number) {
     setSelectedTask(taskId ?? null)
     setServiceNote('')
+    setManualServiceTool(tools[0]?.name ?? '')
     setModal('service')
   }
 
@@ -567,6 +568,26 @@ function App() {
     setServiceNote('')
     setModal(null)
     setToast(`${task.tool} service logged.`)
+  }
+
+  function logUnscheduledService(tool: string, action: string, note: string) {
+    if (!tools.some((item) => item.name === tool) || !action.trim()) {
+      setToast('Choose a tool and describe the service before saving.')
+      return
+    }
+    const completedAt = new Date().toISOString()
+    setServiceLogs((items) => [{
+      id: `manual-${crypto.randomUUID()}`,
+      taskId: null,
+      tool,
+      action: action.trim(),
+      note: note.trim(),
+      completedAt,
+    }, ...items])
+    setSelectedTask(null)
+    setServiceNote('')
+    setModal(null)
+    setToast(`${tool} service logged.`)
   }
 
   function adjustStock(itemId: string, change: number) {
@@ -632,7 +653,7 @@ function App() {
       ...initialTasks.map((task) => task.id),
       ...customMaintenanceTasks.map((task) => task.id),
       ...completedTaskIds,
-      ...serviceLogs.map((log) => log.taskId),
+      ...serviceLogs.flatMap((log) => log.taskId === null ? [] : [log.taskId]),
     ) + 1
     setCustomMaintenanceTasks((items) => [...items, { id, action, tool, dueAt, recurrence }])
     setActiveSection('Maintenance')
@@ -1115,9 +1136,27 @@ function App() {
                     setToast('Pick a task to add it to your service history.')
                     return
                   }
+                  if (selectedTask === 'manual') {
+                    const formData = new FormData(event.currentTarget)
+                    logUnscheduledService(
+                      manualServiceTool,
+                      String(formData.get('action') ?? ''),
+                      serviceNote,
+                    )
+                    return
+                  }
                   completeService(selectedTask, serviceNote)
                 }}>
-                  <label>What did you work on?<select value={selectedTask ?? ''} onChange={(event) => setSelectedTask(Number(event.target.value) || null)}><option value="">Pick a maintenance task</option>{tasks.map((task) => <option key={task.id} value={task.id}>{task.tool} — {task.action}</option>)}</select></label>
+                  <label>What did you work on?<select value={selectedTask ?? ''} onChange={(event) => {
+                    const value = event.target.value
+                    setSelectedTask(value === 'manual' ? 'manual' : Number(value) || null)
+                  }}><option value="">Pick a maintenance task</option>{tasks.map((task) => <option key={task.id} value={task.id}>{task.tool} — {task.action}</option>)}<option value="manual">Other service (no reminder)</option></select></label>
+                  {selectedTask === 'manual' && (
+                    <>
+                      <label>Which tool?<select value={manualServiceTool} onChange={(event) => setManualServiceTool(event.target.value)} required>{tools.map((tool) => <option key={tool.id} value={tool.name}>{tool.name}</option>)}</select></label>
+                      <label>Service performed<input autoFocus name="action" placeholder="e.g. Replaced the drive belt" required /></label>
+                    </>
+                  )}
                   <label>A note for next time <span className="optional-label">OPTIONAL</span><textarea value={serviceNote} onChange={(event) => setServiceNote(event.target.value)} placeholder="Anything worth remembering?" rows={3} /></label>
                   <div className="service-date"><CalendarDays size={15} /><span>Service date</span><strong>Today, {shortDate}</strong></div>
                   <div className="modal-actions"><button className="cancel-button" onClick={() => setModal(null)} type="button">Not now</button><button className="add-button" type="submit"><Check size={15} /> Save service</button></div>
