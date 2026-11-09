@@ -124,8 +124,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .hero-cta { display: inline-flex; align-items: center; gap: 9px; margin-top: 17px; padding: 9px 11px; border: 1px solid #ffffff27; border-radius: 6px; color: #f0f1e7; background: #ffffff0c; cursor: pointer; font-size: 10px; transition: background .2s; }
 .hero-cta:hover { background: #ffffff18; }
 .hero-art { position: absolute; top: 0; right: 0; width: 57%; height: 100%; overflow: hidden; }
-.hero-art canvas { position: absolute; z-index: 1; inset: 0; }
-.scene-loading { position: absolute; z-index: 1; inset: 20% 15%; border: 1px solid #dfe6ce24; border-radius: 50%; background: radial-gradient(ellipse, #c0cf8e1c, transparent 70%); }
+.hero-drill-illustration { position: absolute; z-index: 1; inset: 0; width: 100%; height: 100%; overflow: visible; }
 .art-glow { position: absolute; top: 4%; right: 10%; width: 330px; height: 280px; border-radius: 50%; background: radial-gradient(ellipse, #c0cf8e2b 0%, #aebd8a13 34%, transparent 70%); filter: blur(8px); }
 .art-grid { position: absolute; inset: 0; opacity: .14; background-image: linear-gradient(#d7dfca15 1px, transparent 1px), linear-gradient(90deg, #d7dfca15 1px, transparent 1px); background-size: 36px 36px; mask-image: linear-gradient(90deg, transparent, black 45%, black); }
 .art-orbit { position: absolute; top: 48%; left: 58%; width: 330px; height: 102px; border: 1px solid #e5e9d829; border-radius: 50%; transform: translate(-50%, -50%) rotate(-24deg); }
@@ -764,7 +763,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   .hero-copy p { max-width: 220px; font-size: 9px; }
   .hero-cta { margin-top: 12px; padding: 8px 9px; font-size: 9px; }
   .hero-art { top: 5px; right: -14%; width: 64%; height: 190px; opacity: .83; }
-  .hero-art canvas { opacity: .78; }
+  .hero-drill-illustration { opacity: .9; }
   .art-caption { top: 14px; right: 15px; font-size: 6px; }
   .art-index { right: 17px; bottom: 16px; font-size: 8px; }
   .art-orbit { width: 250px; height: 74px; }

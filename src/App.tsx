@@ -55,10 +55,11 @@ import {
   Wrench,
   X,
 } from 'lucide-react'
-import { lazy, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
 import AccountDialog from './components/AccountDialog'
+import DrillScene from './DrillScene'
 import { supabaseClient } from './lib/supabase'
 import { useAuthSession } from './lib/useAuthSession'
 
@@ -423,7 +424,6 @@ function backupLocalSnapshot(userId: string, snapshot: WorkshopSnapshot) {
   return backups.length > 0
 }
 
-const DrillScene = lazy(() => import('./DrillScene'))
 const today = new Date()
 const todayLabel = new Intl.DateTimeFormat('en', { weekday: 'long', month: 'long', day: 'numeric' })
   .format(today)
@@ -1199,13 +1199,13 @@ function App() {
                 See what needs love <ArrowRight size={15} />
               </button>
             </div>
-            <div className="hero-art" aria-label="A three-dimensional cordless drill illustration">
+            <div className="hero-art" aria-label="A cordless drill illustration">
               <div className="art-glow" />
               <div className="art-grid" />
               <div className="art-orbit orbit-one" />
               <div className="art-orbit orbit-two" />
               <div className="art-caption"><span className="caption-line" /> A TOOL THAT<br />EARNS ITS KEEP</div>
-              <Suspense fallback={<div className="scene-loading" />}><DrillScene /></Suspense>
+              <DrillScene />
               <div className="art-shadow" />
             </div>
             <div className="hero-footer"><span><span className="hero-footer-dot" /> YOUR BENCH, IN GOOD SHAPE</span><span>GOOD WORK STARTS HERE <ArrowDownRight size={13} /></span></div>
@@ -1343,15 +1343,15 @@ function App() {
               </div>
             ) : (
               <div className="tool-grid">
-                {filteredTools.map((tool, index) => (
-                  <motion.button className="tool-card" key={tool.id} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.08 * index }} onClick={() => setProfileRoute(tool.id)} type="button">
+                {filteredTools.map((tool) => (
+                  <button className="tool-card" key={tool.id} onClick={() => setProfileRoute(tool.id)} type="button">
                     <div className={`tool-photo tool-photo-${tool.color}`}>
                       <ToolIllustration type={tool.illustration} />
                       <span className={`tool-status ${tool.status === 'Due soon' ? 'tool-status-due' : ''}`}><span />{tool.status === 'Good' ? 'In good shape' : tool.status}</span>
                       <span className="tool-card-more"><MoreHorizontal size={16} /></span>
                     </div>
                     <span className="tool-card-copy"><span><strong>{tool.name}</strong><small>{tool.model}</small></span><ArrowUpRight size={16} /></span>
-                  </motion.button>
+                  </button>
                 ))}
                 <button className="add-tool-card" onClick={() => setModal('tool')} type="button">
                   <span className="add-tool-icon"><Plus size={18} /></span><strong>Make room for one more</strong><small>Add a tool to your workshop</small><span className="add-tool-link">Add a tool <ArrowRight size={14} /></span>

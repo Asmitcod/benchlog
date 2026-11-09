@@ -1,84 +1,41 @@
-import { RoundedBox } from '@react-three/drei'
-import { Canvas, useFrame } from '@react-three/fiber'
-import { useRef } from 'react'
-import type { Group } from 'three'
-
-function DrillModel() {
-  const group = useRef<Group>(null)
-  const elapsed = useRef(0)
-
-  useFrame((_, delta) => {
-    if (!group.current) return
-    elapsed.current += delta
-    group.current.rotation.y = Math.sin(elapsed.current * 0.32) * 0.22
-    group.current.rotation.x = Math.sin(elapsed.current * 0.24) * 0.035
-    group.current.position.y = Math.sin(elapsed.current * 0.7) * 0.045
-  })
-
-  return (
-    <group ref={group} rotation={[0.06, -0.5, 0.02]} scale={1.04}>
-      <mesh position={[0.18, 0.38, 0]}>
-        <RoundedBox args={[1.42, 0.82, 0.74]} radius={0.17} smoothness={5}>
-          <meshStandardMaterial color="#ce622f" roughness={0.32} metalness={0.16} />
-        </RoundedBox>
-      </mesh>
-      <mesh position={[-0.58, 0.15, 0]} rotation={[0, 0, -0.19]}>
-        <RoundedBox args={[0.42, 0.72, 0.62]} radius={0.14} smoothness={5}>
-          <meshStandardMaterial color="#26332d" roughness={0.45} />
-        </RoundedBox>
-      </mesh>
-      <mesh position={[-0.67, -0.36, 0]} rotation={[0, 0, 0.12]}>
-        <RoundedBox args={[0.47, 0.39, 0.69]} radius={0.09} smoothness={4}>
-          <meshStandardMaterial color="#e2aa43" roughness={0.35} metalness={0.16} />
-        </RoundedBox>
-      </mesh>
-      <mesh position={[0.24, -0.23, 0]} rotation={[0, 0, -0.12]}>
-        <RoundedBox args={[0.29, 0.53, 0.42]} radius={0.11} smoothness={4}>
-          <meshStandardMaterial color="#d8c6a6" roughness={0.5} />
-        </RoundedBox>
-      </mesh>
-      <mesh position={[0.24, -0.27, 0]}>
-        <RoundedBox args={[0.31, 0.13, 0.44]} radius={0.045} smoothness={4}>
-          <meshStandardMaterial color="#a29579" roughness={0.62} />
-        </RoundedBox>
-      </mesh>
-      <mesh position={[1.0, 0.39, 0]} rotation={[0, 0, Math.PI / 2]}>
-        <cylinderGeometry args={[0.22, 0.22, 0.34, 24]} />
-        <meshStandardMaterial color="#777a71" metalness={0.8} roughness={0.24} />
-      </mesh>
-      <mesh position={[1.27, 0.39, 0]} rotation={[0, 0, Math.PI / 2]}>
-        <cylinderGeometry args={[0.13, 0.18, 0.27, 20]} />
-        <meshStandardMaterial color="#c2bca9" metalness={0.86} roughness={0.2} />
-      </mesh>
-      <mesh position={[1.48, 0.39, 0]} rotation={[0, 0, Math.PI / 2]}>
-        <cylinderGeometry args={[0.025, 0.035, 0.23, 12]} />
-        <meshStandardMaterial color="#85887e" metalness={0.9} roughness={0.22} />
-      </mesh>
-      <mesh position={[0.05, 0.812, 0]}>
-        <RoundedBox args={[0.32, 0.065, 0.18]} radius={0.025} smoothness={3}>
-          <meshStandardMaterial color="#e8b44d" roughness={0.28} />
-        </RoundedBox>
-      </mesh>
-      <mesh position={[-0.31, 0.36, 0.375]}>
-        <boxGeometry args={[0.3, 0.1, 0.025]} />
-        <meshStandardMaterial color="#e7ad4a" roughness={0.3} />
-      </mesh>
-      <mesh position={[-0.14, 0.38, 0.39]}>
-        <boxGeometry args={[0.12, 0.045, 0.03]} />
-        <meshStandardMaterial color="#f0ebdc" roughness={0.28} />
-      </mesh>
-    </group>
-  )
-}
-
 export default function DrillScene() {
   return (
-    <Canvas camera={{ position: [3.4, 2.3, 5], fov: 34 }} dpr={[1, 1.5]}>
-      <ambientLight intensity={1.7} />
-      <hemisphereLight args={['#fff5d9', '#4e594a', 1.4]} />
-      <directionalLight position={[3, 5, 4]} intensity={3.1} castShadow />
-      <pointLight position={[-3, 1.5, -2]} intensity={25} color="#c8e88b" />
-      <DrillModel />
-    </Canvas>
+    <svg
+      className="hero-drill-illustration"
+      viewBox="0 0 360 280"
+      role="img"
+      aria-label="Illustration of a cordless workshop drill"
+    >
+      <defs>
+        <linearGradient id="drill-body" x1="0" x2="1" y1="0" y2="1">
+          <stop offset="0" stopColor="#f4a35f" />
+          <stop offset="1" stopColor="#b94e2c" />
+        </linearGradient>
+        <linearGradient id="drill-grip" x1="0" x2="0" y1="0" y2="1">
+          <stop offset="0" stopColor="#354a50" />
+          <stop offset="1" stopColor="#17272e" />
+        </linearGradient>
+        <filter id="drill-shadow" x="-.3" y="-.3" width="1.6" height="1.8">
+          <feGaussianBlur stdDeviation="7" />
+        </filter>
+      </defs>
+      <ellipse cx="176" cy="234" rx="112" ry="15" fill="#03070b" opacity=".42" filter="url(#drill-shadow)" />
+      <g transform="rotate(-8 180 140)">
+        <path d="M259 103h50v50h-50z" fill="#536168" stroke="#9eaaa5" strokeWidth="4" />
+        <path d="M305 116h31v24h-31z" fill="#abb5ae" />
+        <path d="M332 124h22v8h-22z" fill="#d2c8ae" />
+        <path d="M119 77q0-12 12-12h124q15 0 15 15v81q0 14-14 14H126q-11 0-11-12z" fill="url(#drill-body)" stroke="#ffd19a" strokeOpacity=".7" strokeWidth="4" />
+        <path d="M135 94h97v8h-97z" fill="#ffe1b5" opacity=".78" />
+        <path d="M130 112h112v46H130z" fill="#d66b3c" opacity=".45" />
+        <path d="M157 175h69l-10 45q-2 10-13 10h-34q-10 0-12-10z" fill="url(#drill-grip)" stroke="#84948d" strokeWidth="3" />
+        <path d="M163 187h53m-48 12h42m-37 12h32" stroke="#71827e" strokeWidth="4" strokeLinecap="round" opacity=".72" />
+        <path d="M146 173h44v10h-44z" fill="#e4aa51" />
+        <path d="M176 223h42l13 17q2 5-5 5h-57q-6 0-3-6z" fill="#e4aa51" stroke="#ffd58d" strokeWidth="3" />
+        <path d="M181 230h38" stroke="#fff0c8" strokeWidth="3" strokeLinecap="round" opacity=".78" />
+        <path d="M198 65v-14q0-6 6-6h34q6 0 6 6v14z" fill="#42565c" stroke="#92a29a" strokeWidth="3" />
+        <circle cx="142" cy="131" r="10" fill="#f3bf66" />
+        <circle cx="142" cy="131" r="4" fill="#fff1ce" />
+      </g>
+    </svg>
   )
 }
