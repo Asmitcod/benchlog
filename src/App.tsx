@@ -150,7 +150,28 @@ function readStockItems(): StockItem[] {
   return initialStock
 }
 
-const initialTools: Tool[] = []
+const initialTools: Tool[] = [
+  { id: 'TL-001', name: 'Hammer', category: 'Woodworking', model: 'General purpose', location: 'Workshop', status: 'Good', illustration: 'drill', color: 'blue' },
+  { id: 'TL-002', name: 'Screwdriver set', category: 'Other', model: 'Flathead and Phillips', location: 'Workshop', status: 'Good', illustration: 'drill', color: 'blue' },
+  { id: 'TL-003', name: 'Adjustable wrench', category: 'Metalworking', model: 'General purpose', location: 'Workshop', status: 'Good', illustration: 'drill', color: 'blue' },
+  { id: 'TL-004', name: 'Pliers', category: 'Other', model: 'Combination pliers', location: 'Workshop', status: 'Good', illustration: 'drill', color: 'blue' },
+  { id: 'TL-005', name: 'Tape measure', category: 'Woodworking', model: '5 m / 16 ft', location: 'Workshop', status: 'Good', illustration: 'drill', color: 'blue' },
+  { id: 'TL-006', name: 'Utility knife', category: 'Other', model: 'Retractable blade', location: 'Workshop', status: 'Good', illustration: 'drill', color: 'blue' },
+  { id: 'TL-007', name: 'Cordless drill', category: 'Woodworking', model: 'General purpose', location: 'Workshop', status: 'Good', illustration: 'drill', color: 'blue' },
+  { id: 'TL-008', name: 'Hand saw', category: 'Woodworking', model: 'General purpose', location: 'Workshop', status: 'Good', illustration: 'saw', color: 'sand' },
+  { id: 'TL-009', name: 'Spirit level', category: 'Other', model: '45 cm / 18 in', location: 'Workshop', status: 'Good', illustration: 'drill', color: 'blue' },
+  { id: 'TL-010', name: 'Socket set', category: 'Metalworking', model: 'Metric set', location: 'Workshop', status: 'Good', illustration: 'drill', color: 'blue' },
+  { id: 'TL-011', name: 'Hex key set', category: 'Other', model: 'Metric set', location: 'Workshop', status: 'Good', illustration: 'drill', color: 'blue' },
+  { id: 'TL-012', name: 'Clamps', category: 'Woodworking', model: 'General purpose', location: 'Workshop', status: 'Good', illustration: 'drill', color: 'blue' },
+  { id: 'TL-013', name: 'Scissors', category: 'Other', model: 'General purpose', location: 'Workshop', status: 'Good', illustration: 'drill', color: 'blue' },
+  { id: 'TL-014', name: 'Metal file', category: 'Metalworking', model: 'Flat file', location: 'Workshop', status: 'Good', illustration: 'drill', color: 'blue' },
+  { id: 'TL-015', name: 'Wood chisel set', category: 'Woodworking', model: 'General purpose', location: 'Workshop', status: 'Good', illustration: 'drill', color: 'blue' },
+  { id: 'TL-016', name: 'Rubber mallet', category: 'Woodworking', model: 'General purpose', location: 'Workshop', status: 'Good', illustration: 'drill', color: 'blue' },
+  { id: 'TL-017', name: 'Combination wrench set', category: 'Metalworking', model: 'Metric set', location: 'Workshop', status: 'Good', illustration: 'drill', color: 'blue' },
+  { id: 'TL-018', name: 'Flashlight', category: 'Other', model: 'Handheld', location: 'Workshop', status: 'Good', illustration: 'drill', color: 'blue' },
+  { id: 'TL-019', name: 'Safety glasses', category: 'Other', model: 'Protective eyewear', location: 'Workshop', status: 'Good', illustration: 'drill', color: 'blue' },
+  { id: 'TL-020', name: 'Toolbox', category: 'Other', model: 'General purpose', location: 'Workshop', status: 'Good', illustration: 'drill', color: 'blue' },
+]
 
 function isBundledSampleStock(item: StockItem) {
   return (item.id === 'PLA-001' && item.name === 'PLA filament' && item.location === 'Prusa MK4S · 1 kg spools') ||
@@ -190,7 +211,10 @@ function readSavedTools(): Tool[] {
   if (!saved) return initialTools
   try {
     const value: unknown = JSON.parse(saved)
-    if (Array.isArray(value) && value.every(isTool)) return value.filter((tool) => !isBundledSampleTool(tool))
+    if (Array.isArray(value) && value.every(isTool)) {
+      const savedTools = value.filter((tool) => !isBundledSampleTool(tool))
+      return savedTools.length > 0 ? savedTools : initialTools
+    }
   } catch (error) {
     if (!(error instanceof SyntaxError)) throw error
     console.error('Saved workshop tools could not be read; starting with an empty workshop.', error)
@@ -295,9 +319,10 @@ function isWorkshopSnapshot(value: unknown): value is WorkshopSnapshot {
 }
 
 function removeBundledSampleData(snapshot: WorkshopSnapshot): WorkshopSnapshot {
+  const savedTools = snapshot.tools.filter((tool) => !isBundledSampleTool(tool))
   return {
     ...snapshot,
-    tools: snapshot.tools.filter((tool) => !isBundledSampleTool(tool)),
+    tools: savedTools.length > 0 ? savedTools : initialTools,
     stockItems: snapshot.stockItems.filter((item) => !isBundledSampleStock(item)),
     completedTaskIds: snapshot.completedTaskIds.filter((id) => !legacySampleTaskIds.has(id)),
     serviceLogs: snapshot.serviceLogs.filter((log) => log.taskId === null || !legacySampleTaskIds.has(log.taskId)),
