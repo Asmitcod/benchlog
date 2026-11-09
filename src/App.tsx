@@ -1580,6 +1580,11 @@ function App() {
           hasLocalBackup={hasLocalBackup}
           onDownloadBackup={downloadLocalBackup}
           onClose={() => setAccountOpen(false)}
+          onRetrySync={() => {
+            if (userId && syncReadyFor !== userId) setLoadRetry((retry) => retry + 1)
+            else setSyncRetry((retry) => retry + 1)
+            setSyncError('')
+          }}
           sessionError={authSessionError}
           syncError={syncError}
           syncStatus={syncStatus}

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
-import { Check, LogOut, Mail, X } from 'lucide-react'
+import { Check, LogOut, Mail, RefreshCw, X } from 'lucide-react'
 import type { SupabaseClient, User } from '@supabase/supabase-js'
 import { supabaseConfigurationError } from '../lib/supabase'
 
@@ -13,6 +13,7 @@ type AccountDialogProps = {
   sessionError: string
   syncError: string
   syncStatus: 'local' | 'loading' | 'synced' | 'error'
+  onRetrySync: () => void
   onClose: () => void
 }
 
@@ -28,6 +29,7 @@ export default function AccountDialog({
   sessionError,
   syncError,
   syncStatus,
+  onRetrySync,
   onClose,
 }: AccountDialogProps) {
   const [email, setEmail] = useState('')
@@ -130,6 +132,11 @@ export default function AccountDialog({
               <div className="modal-actions">
                 {hasLocalBackup && (
                   <button className="cancel-button" onClick={onDownloadBackup} type="button">Download local backup</button>
+                )}
+                {syncStatus === 'error' && (
+                  <button className="cancel-button" onClick={onRetrySync} type="button">
+                    <RefreshCw size={14} /> Retry sync
+                  </button>
                 )}
                 <button className="cancel-button" onClick={onClose} type="button">Close</button>
                 <button className="add-button" disabled={busy} onClick={() => void signOut()} type="button">

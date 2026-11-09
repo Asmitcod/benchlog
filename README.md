@@ -204,7 +204,7 @@ If Vite picks another port, add that exact origin and path to the allowlist too.
 
 - No cloud snapshot yet: your browser data is uploaded to the account.
 - Cloud snapshot exists: cloud wins on this browser. If the two differ, the local copy is first saved to a browser-local backup list (up to 10 copies), downloadable from the account dialog.
-- Sync fails: the error shows in the account dialog and local changes stay in browser storage.
+- Sync fails: the error shows in the account dialog, local changes stay in browser storage, and Retry sync retries after the connection or database issue is fixed.
 
 </details>
 
