@@ -19,6 +19,7 @@ import {
   FileText,
   Filter,
   Hammer,
+  History,
   LayoutDashboard,
   LifeBuoy,
   Menu,
@@ -59,6 +60,15 @@ type ServiceTask = {
   state: 'Overdue' | 'Today' | 'Tomorrow' | 'This week'
   icon: typeof Wrench
   color: string
+}
+
+type ServiceLog = {
+  id: string
+  taskId: number
+  tool: string
+  action: string
+  note: string
+  completedAt: string
 }
 
 const initialTools: Tool[] = [
@@ -146,6 +156,41 @@ function readCompletedTaskIds(): number[] {
   return []
 }
 
+function isServiceLog(value: unknown): value is ServiceLog {
+  if (typeof value !== 'object' || value === null) return false
+  return (
+    'id' in value &&
+    typeof value.id === 'string' &&
+    'taskId' in value &&
+    typeof value.taskId === 'number' &&
+    Number.isInteger(value.taskId) &&
+    'tool' in value &&
+    typeof value.tool === 'string' &&
+    'action' in value &&
+    typeof value.action === 'string' &&
+    'note' in value &&
+    typeof value.note === 'string' &&
+    'completedAt' in value &&
+    typeof value.completedAt === 'string' &&
+    Number.isFinite(Date.parse(value.completedAt))
+  )
+}
+
+function readServiceLogs(): ServiceLog[] {
+  const saved = localStorage.getItem('benchlog.service-logs')
+  if (!saved) return []
+  try {
+    const value: unknown = JSON.parse(saved)
+    if (Array.isArray(value) && value.every(isServiceLog)) return value
+  } catch (error) {
+    if (!(error instanceof SyntaxError)) throw error
+    console.error('Saved service history could not be read; starting with an empty history.', error)
+    return []
+  }
+  console.error('Saved service history was invalid; starting with an empty history.')
+  return []
+}
+
 const initialTasks: ServiceTask[] = [
   { id: 1, tool: 'Prusa MK4S', action: 'Clean & lubricate linear rails', due: '2 days overdue', state: 'Overdue', icon: Settings2, color: 'peach' },
   { id: 2, tool: 'Table saw', action: 'Check blade alignment', due: 'Today', state: 'Today', icon: SlidersHorizontal, color: 'lavender' },
@@ -159,6 +204,11 @@ const todayLabel = new Intl.DateTimeFormat('en', { weekday: 'long', month: 'long
   .format(today)
   .toUpperCase()
 const shortDate = new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric' }).format(today)
+const serviceDateFormat = new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric', year: 'numeric' })
+
+function formatServiceDate(value: string) {
+  return serviceDateFormat.format(new Date(value))
+}
 
 function readToolIdFromHash() {
   const match = window.location.hash.match(/^#tool\/(.+)$/)
@@ -245,6 +295,7 @@ function App() {
   const [activeSection, setActiveSection] = useState('Overview')
   const [tools, setTools] = useState(readSavedTools)
   const [completedTaskIds, setCompletedTaskIds] = useState(readCompletedTaskIds)
+  const [serviceLogs, setServiceLogs] = useState(readServiceLogs)
   const tasks = useMemo(() => initialTasks.filter((task) => !completedTaskIds.includes(task.id)), [completedTaskIds])
   const [query, setQuery] = useState('')
   const [modal, setModal] = useState<'tool' | 'service' | null>(null)
@@ -252,6 +303,7 @@ function App() {
   const [toast, setToast] = useState('')
   const [notificationOpen, setNotificationOpen] = useState(false)
   const [selectedTask, setSelectedTask] = useState<number | null>(null)
+  const [serviceNote, setServiceNote] = useState('')
   const [profileToolId, setProfileToolId] = useState(readToolIdFromHash)
 
   useEffect(() => {
@@ -274,6 +326,10 @@ function App() {
   }, [completedTaskIds])
 
   useEffect(() => {
+    localStorage.setItem('benchlog.service-logs', JSON.stringify(serviceLogs))
+  }, [serviceLogs])
+
+  useEffect(() => {
     const syncProfileFromUrl = () => setProfileToolId(readToolIdFromHash())
     window.addEventListener('hashchange', syncProfileFromUrl)
     return () => window.removeEventListener('hashchange', syncProfileFromUrl)
@@ -288,6 +344,8 @@ function App() {
   )
   const profileTool = tools.find((tool) => tool.id === profileToolId)
   const profileTasks = profileTool ? tasks.filter((task) => task.tool === profileTool.name) : []
+  const profileServiceLogs = profileTool ? serviceLogs.filter((log) => log.tool === profileTool.name) : []
+  const latestServiceLog = serviceLogs[0]
   const profileUrl = useMemo(() => {
     if (!profileTool) return ''
     const url = new URL(window.location.href)
@@ -304,6 +362,7 @@ function App() {
 
   function openService(taskId?: number) {
     setSelectedTask(taskId ?? null)
+    setServiceNote('')
     setModal('service')
   }
 
@@ -317,12 +376,26 @@ function App() {
     }
   }
 
-  function completeService(id: number) {
+  function completeService(id: number, note: string) {
     const task = tasks.find((item) => item.id === id)
+    if (!task) {
+      setToast('Choose an active maintenance task before saving a service log.')
+      return
+    }
+    const completedAt = new Date().toISOString()
+    setServiceLogs((items) => [{
+      id: `${id}-${completedAt}`,
+      taskId: id,
+      tool: task.tool,
+      action: task.action,
+      note: note.trim(),
+      completedAt,
+    }, ...items])
     setCompletedTaskIds((items) => items.includes(id) ? items : [...items, id])
     setSelectedTask(null)
+    setServiceNote('')
     setModal(null)
-    setToast(`${task?.tool ?? 'Tool'} service logged. Next due date updated.`)
+    setToast(`${task.tool} service logged.`)
   }
 
   function addTool(event: FormEvent<HTMLFormElement>) {
@@ -510,8 +583,8 @@ function App() {
             <motion.article className="stat-card stat-card-quiet" initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.34 }}>
               <GlassSurface active={theme === 'dark'} />
               <span className="stat-label">LAST THING YOU DID <Sparkles size={15} /></span>
-              <div className="stat-value stat-last">Cleaned the<br />laser lens</div>
-              <div className="stat-foot"><span className="positive-dot" /> Yesterday, on the Glowforge Pro</div>
+              <div className="stat-value stat-last">{latestServiceLog?.action ?? 'No service logged yet'}</div>
+              <div className="stat-foot"><span className="positive-dot" />{latestServiceLog ? `${formatServiceDate(latestServiceLog.completedAt)} · ${latestServiceLog.tool}` : 'Your service notes will appear here'}</div>
             </motion.article>
           </section>
 
@@ -655,6 +728,29 @@ function App() {
                     )}
                   </section>
 
+                  <section className="profile-history">
+                    <div className="profile-section-heading">
+                      <div><span className="section-eyebrow">A RECORD OF GOOD CARE</span><h3>Service history</h3></div>
+                      <span className="profile-task-count">{profileServiceLogs.length} logged</span>
+                    </div>
+                    {profileServiceLogs.length > 0 ? (
+                      <div className="profile-history-list">
+                        {profileServiceLogs.slice(0, 4).map((log) => (
+                          <article className="profile-history-item" key={log.id}>
+                            <span className="profile-history-icon"><History size={14} /></span>
+                            <div>
+                              <strong>{log.action}</strong>
+                              <time dateTime={log.completedAt}>{formatServiceDate(log.completedAt)}</time>
+                              {log.note && <p>{log.note}</p>}
+                            </div>
+                          </article>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="profile-empty"><History size={15} /><span>Completed service and notes will show up here.</span></div>
+                    )}
+                  </section>
+
                   <section className="profile-documents">
                     <div className="profile-section-heading">
                       <div><span className="section-eyebrow">ON HAND WHEN YOU NEED IT</span><h3>Documents</h3></div>
@@ -700,12 +796,19 @@ function App() {
                   <div className="modal-actions"><button className="cancel-button" onClick={() => setModal(null)} type="button">Not now</button><button className="add-button" type="submit"><Plus size={15} /> Add to workshop</button></div>
                 </form>
               ) : (
-                <div className="service-form">
+                <form className="service-form" onSubmit={(event) => {
+                  event.preventDefault()
+                  if (selectedTask === null) {
+                    setToast('Pick a task to add it to your service history.')
+                    return
+                  }
+                  completeService(selectedTask, serviceNote)
+                }}>
                   <label>What did you work on?<select value={selectedTask ?? ''} onChange={(event) => setSelectedTask(Number(event.target.value) || null)}><option value="">Pick a maintenance task</option>{tasks.map((task) => <option key={task.id} value={task.id}>{task.tool} — {task.action}</option>)}</select></label>
-                  <label>A note for next time <span className="optional-label">OPTIONAL</span><textarea placeholder="Anything worth remembering?" rows={3} /></label>
+                  <label>A note for next time <span className="optional-label">OPTIONAL</span><textarea value={serviceNote} onChange={(event) => setServiceNote(event.target.value)} placeholder="Anything worth remembering?" rows={3} /></label>
                   <div className="service-date"><CalendarDays size={15} /><span>Service date</span><strong>Today, {shortDate}</strong></div>
-                  <div className="modal-actions"><button className="cancel-button" onClick={() => setModal(null)} type="button">Not now</button><button className="add-button" onClick={() => selectedTask ? completeService(selectedTask) : (setModal(null), setToast('Pick a task to add it to your service history.'))} type="button"><Check size={15} /> Save service</button></div>
-                </div>
+                  <div className="modal-actions"><button className="cancel-button" onClick={() => setModal(null)} type="button">Not now</button><button className="add-button" type="submit"><Check size={15} /> Save service</button></div>
+                </form>
               )}
             </motion.div>
           </motion.div>
