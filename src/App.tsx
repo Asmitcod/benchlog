@@ -29,9 +29,7 @@ import {
   Printer,
   QrCode,
   Search,
-  Settings2,
   ShieldCheck,
-  SlidersHorizontal,
   Sparkles,
   Sun,
   Moon,
@@ -119,10 +117,8 @@ type LocalSnapshotBackup = {
 
 type SyncStatus = 'local' | 'loading' | 'synced' | 'error'
 
-const initialStock: StockItem[] = [
-  { id: 'PLA-001', name: 'PLA filament', location: 'Prusa MK4S · 1 kg spools', quantity: 0.3, capacity: 2, minimum: 0.5, unit: 'kg', step: 0.1, onRestockList: false },
-  { id: 'HEPA-001', name: 'HEPA filter', location: 'Shop vac · 1 filter', quantity: 1, capacity: 3, minimum: 1, unit: 'pcs', step: 1, onRestockList: false },
-]
+const legacySampleTaskIds = new Set([1, 2, 3, 4])
+const initialStock: StockItem[] = []
 
 function isStockItem(value: unknown): value is StockItem {
   if (typeof value !== 'object' || value === null) return false
@@ -144,48 +140,28 @@ function readStockItems(): StockItem[] {
   if (!saved) return initialStock
   try {
     const value: unknown = JSON.parse(saved)
-    if (Array.isArray(value) && value.every(isStockItem)) return value
+    if (Array.isArray(value) && value.every(isStockItem)) return value.filter((item) => !isBundledSampleStock(item))
   } catch (error) {
     if (!(error instanceof SyntaxError)) throw error
-    console.error('Saved workshop stock could not be read; starting with sample stock.', error)
+    console.error('Saved workshop stock could not be read; starting with empty stock.', error)
     return initialStock
   }
-  console.error('Saved workshop stock was invalid; starting with sample stock.')
+  console.error('Saved workshop stock was invalid; starting with empty stock.')
   return initialStock
 }
 
-const initialTools: Tool[] = [
-  {
-    id: 'TL-001',
-    name: 'Table saw',
-    category: 'Woodworking',
-    model: 'SawStop · PCS31230',
-    location: 'Main bench',
-    status: 'Good',
-    illustration: 'saw',
-    color: 'sand',
-  },
-  {
-    id: 'TL-002',
-    name: 'Prusa MK4S',
-    category: '3D printing',
-    model: 'Prusa Research · MK4S',
-    location: 'Print corner',
-    status: 'Due soon',
-    illustration: 'printer',
-    color: 'rose',
-  },
-  {
-    id: 'TL-003',
-    name: 'Drill press',
-    category: 'Metalworking',
-    model: 'WEN · 4214T',
-    location: 'East wall',
-    status: 'Good',
-    illustration: 'drill',
-    color: 'blue',
-  },
-]
+const initialTools: Tool[] = []
+
+function isBundledSampleStock(item: StockItem) {
+  return (item.id === 'PLA-001' && item.name === 'PLA filament' && item.location === 'Prusa MK4S · 1 kg spools') ||
+    (item.id === 'HEPA-001' && item.name === 'HEPA filter' && item.location === 'Shop vac · 1 filter')
+}
+
+function isBundledSampleTool(tool: Tool) {
+  return (tool.id === 'TL-001' && tool.name === 'Table saw' && tool.model === 'SawStop · PCS31230') ||
+    (tool.id === 'TL-002' && tool.name === 'Prusa MK4S' && tool.model === 'Prusa Research · MK4S') ||
+    (tool.id === 'TL-003' && tool.name === 'Drill press' && tool.model === 'WEN · 4214T')
+}
 
 function isTool(value: unknown): value is Tool {
   if (typeof value !== 'object' || value === null) return false
@@ -214,13 +190,13 @@ function readSavedTools(): Tool[] {
   if (!saved) return initialTools
   try {
     const value: unknown = JSON.parse(saved)
-    if (Array.isArray(value) && value.every(isTool)) return value
+    if (Array.isArray(value) && value.every(isTool)) return value.filter((tool) => !isBundledSampleTool(tool))
   } catch (error) {
     if (!(error instanceof SyntaxError)) throw error
-    console.error('Saved workshop tools could not be read; starting with the sample tools.', error)
+    console.error('Saved workshop tools could not be read; starting with an empty workshop.', error)
     return initialTools
   }
-  console.error('Saved workshop tools were invalid; starting with the sample tools.')
+  console.error('Saved workshop tools were invalid; starting with an empty workshop.')
   return initialTools
 }
 
@@ -229,13 +205,15 @@ function readCompletedTaskIds(): number[] {
   if (!saved) return []
   try {
     const value: unknown = JSON.parse(saved)
-    if (Array.isArray(value) && value.every((id): id is number => Number.isInteger(id))) return value
+    if (Array.isArray(value) && value.every((id): id is number => Number.isInteger(id))) {
+      return value.filter((id) => !legacySampleTaskIds.has(id))
+    }
   } catch (error) {
     if (!(error instanceof SyntaxError)) throw error
-    console.error('Saved maintenance history could not be read; starting with the sample tasks.', error)
+    console.error('Saved maintenance history could not be read; starting with an empty history.', error)
     return []
   }
-  console.error('Saved maintenance history was invalid; starting with the sample tasks.')
+  console.error('Saved maintenance history was invalid; starting with an empty history.')
   return []
 }
 
@@ -260,10 +238,10 @@ function readCustomMaintenanceTasks(): CustomMaintenanceTask[] {
     if (Array.isArray(value) && value.every(isCustomMaintenanceTask)) return value
   } catch (error) {
     if (!(error instanceof SyntaxError)) throw error
-    console.error('Saved custom maintenance tasks could not be read; starting with sample tasks.', error)
+    console.error('Saved custom maintenance tasks could not be read; starting with an empty list.', error)
     return []
   }
-  console.error('Saved custom maintenance tasks were invalid; starting with sample tasks.')
+  console.error('Saved custom maintenance tasks were invalid; starting with an empty list.')
   return []
 }
 
@@ -291,7 +269,9 @@ function readServiceLogs(): ServiceLog[] {
   if (!saved) return []
   try {
     const value: unknown = JSON.parse(saved)
-    if (Array.isArray(value) && value.every(isServiceLog)) return value
+    if (Array.isArray(value) && value.every(isServiceLog)) {
+      return value.filter((log) => log.taskId === null || !legacySampleTaskIds.has(log.taskId))
+    }
   } catch (error) {
     if (!(error instanceof SyntaxError)) throw error
     console.error('Saved service history could not be read; starting with an empty history.', error)
@@ -312,6 +292,16 @@ function isWorkshopSnapshot(value: unknown): value is WorkshopSnapshot {
       Array.isArray(value.completedTaskIds) && value.completedTaskIds.every((id) => Number.isInteger(id)) &&
     'serviceLogs' in value && Array.isArray(value.serviceLogs) && value.serviceLogs.every(isServiceLog)
   )
+}
+
+function removeBundledSampleData(snapshot: WorkshopSnapshot): WorkshopSnapshot {
+  return {
+    ...snapshot,
+    tools: snapshot.tools.filter((tool) => !isBundledSampleTool(tool)),
+    stockItems: snapshot.stockItems.filter((item) => !isBundledSampleStock(item)),
+    completedTaskIds: snapshot.completedTaskIds.filter((id) => !legacySampleTaskIds.has(id)),
+    serviceLogs: snapshot.serviceLogs.filter((log) => log.taskId === null || !legacySampleTaskIds.has(log.taskId)),
+  }
 }
 
 function isLocalSnapshotBackup(value: unknown): value is LocalSnapshotBackup {
@@ -371,13 +361,6 @@ function backupLocalSnapshot(userId: string, snapshot: WorkshopSnapshot) {
   localStorage.setItem(key, JSON.stringify(backups.slice(-10)))
   return backups.length > 0
 }
-
-const initialTasks: ServiceTask[] = [
-  { id: 1, tool: 'Prusa MK4S', action: 'Clean & lubricate linear rails', due: '2 days overdue', state: 'Overdue', icon: Settings2, color: 'peach' },
-  { id: 2, tool: 'Table saw', action: 'Check blade alignment', due: 'Today', state: 'Today', icon: SlidersHorizontal, color: 'lavender' },
-  { id: 3, tool: 'Shop vac', action: 'Replace HEPA filter', due: 'Tomorrow', state: 'Tomorrow', icon: Sparkles, color: 'mint' },
-  { id: 4, tool: 'Soldering station', action: 'Inspect & tin the tip', due: 'In 4 days', state: 'This week', icon: Wrench, color: 'butter' },
-]
 
 const DrillScene = lazy(() => import('./DrillScene'))
 const today = new Date()
@@ -510,9 +493,9 @@ function ToolIllustration({ type }: { type: Tool['illustration'] }) {
 
 const navItems = [
   { label: 'Overview', icon: LayoutDashboard },
-  { label: 'My tools', icon: Hammer, count: '12' },
-  { label: 'Maintenance', icon: CalendarDays, count: '4', alert: true },
-  { label: 'Parts & stock', icon: Box, count: '2', alert: true },
+  { label: 'My tools', icon: Hammer },
+  { label: 'Maintenance', icon: CalendarDays, alert: true },
+  { label: 'Parts & stock', icon: Box, alert: true },
   { label: 'Documents', icon: FileText },
 ]
 
@@ -579,7 +562,7 @@ function App() {
       }
 
       const localSnapshot = workshopSnapshotRef.current
-      const cloudSnapshot = value
+      const cloudSnapshot = removeBundledSampleData(value)
       const localSerialized = serializeSnapshot(localSnapshot)
       const cloudSerialized = serializeSnapshot(cloudSnapshot)
       setHasLocalBackup(localStorage.getItem(`benchlog.local-backups.${userId}`) !== null)
@@ -595,7 +578,7 @@ function App() {
         setHasLocalBackup(backupAvailable)
       }
 
-      lastCloudSnapshot.current = cloudSerialized
+      lastCloudSnapshot.current = serializeSnapshot(value)
       setSyncReadyFor(userId)
       setSyncStatus('synced')
     }
@@ -694,7 +677,6 @@ function App() {
   }, [syncRetry, syncReadyFor, userId, workshopSnapshot])
 
   const tasks = useMemo(() => [
-    ...initialTasks,
     ...customMaintenanceTasks.map((task): ServiceTask => ({
       ...task,
       ...getTaskDue(task.dueAt),
@@ -956,7 +938,6 @@ function App() {
     }
     const id = Math.max(
       0,
-      ...initialTasks.map((task) => task.id),
       ...customMaintenanceTasks.map((task) => task.id),
       ...completedTaskIds,
       ...serviceLogs.flatMap((log) => log.taskId === null ? [] : [log.taskId]),
@@ -1029,8 +1010,14 @@ function App() {
 
         <span className="nav-heading">WORKSPACE</span>
         <nav className="side-nav" aria-label="Main navigation">
-          {navItems.map(({ label, icon: Icon, count, alert }) => {
-            const badgeCount = label === 'Maintenance' ? String(tasks.length) : label === 'Parts & stock' ? String(lowStockCount) : count
+          {navItems.map(({ label, icon: Icon, alert }) => {
+            const badgeCount = label === 'My tools'
+              ? String(tools.length)
+              : label === 'Maintenance'
+                ? String(tasks.length)
+                : label === 'Parts & stock'
+                  ? String(lowStockCount)
+                  : undefined
             return (
               <button
                 className={`nav-link ${activeSection === label ? 'nav-active' : ''}`}
@@ -1096,8 +1083,8 @@ function App() {
               {notificationOpen && (
                 <motion.div className="notification-popover" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 8 }}>
                   <strong>You’re all set</strong>
-                  <span>Your workshop is up to date. 1 service needs your attention.</span>
-                  <button type="button" onClick={() => { setNotificationOpen(false); selectNavigation('Maintenance') }}>View maintenance <ArrowRight size={14} /></button>
+                  <span>{tasks.length === 0 ? 'No maintenance reminders are scheduled yet.' : `${tasks.length} maintenance ${tasks.length === 1 ? 'reminder is' : 'reminders are'} scheduled.`}</span>
+                  {tasks.length > 0 && <button type="button" onClick={() => { setNotificationOpen(false); selectNavigation('Maintenance') }}>View maintenance <ArrowRight size={14} /></button>}
                 </motion.div>
               )}
             </AnimatePresence>
@@ -1120,7 +1107,7 @@ function App() {
             <div className="hero-copy">
               <span className="hero-kicker"><span className="hero-kicker-dot" /> YOUR WORKSHOP AT A GLANCE</span>
               <h2>Everything in its place.<br />Nothing <em>slips through.</em></h2>
-              <p>12 tools looked after. {tasks.length} little things to take care of.<br />You’ve got this.</p>
+              <p>{tools.length} {tools.length === 1 ? 'tool' : 'tools'} in your workshop. {tasks.length} {tasks.length === 1 ? 'reminder' : 'reminders'} to keep track of.<br />Add your workshop details to get started.</p>
               <button className="hero-cta" onClick={() => selectNavigation('Maintenance')} type="button">
                 See what needs love <ArrowRight size={15} />
               </button>
@@ -1133,7 +1120,6 @@ function App() {
               <div className="art-caption"><span className="caption-line" /> A TOOL THAT<br />EARNS ITS KEEP</div>
               <Suspense fallback={<div className="scene-loading" />}><DrillScene /></Suspense>
               <div className="art-shadow" />
-              <div className="art-index">01 <span>/</span> 12</div>
             </div>
             <div className="hero-footer"><span><span className="hero-footer-dot" /> YOUR BENCH, IN GOOD SHAPE</span><span>GOOD WORK STARTS HERE <ArrowDownRight size={13} /></span></div>
           </motion.section>
@@ -1142,14 +1128,14 @@ function App() {
             <motion.article className="stat-card" initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.16 }}>
               <GlassSurface active={theme === 'dark'} />
               <span className="stat-label">IN YOUR WORKSHOP <Hammer size={15} /></span>
-              <div className="stat-value">{12 + tools.length - initialTools.length}<span>tools</span></div>
-              <div className="stat-foot"><span className="positive-dot" /> Everything where it belongs <ArrowUpRight size={13} /></div>
+              <div className="stat-value">{tools.length}<span>tools</span></div>
+              <div className="stat-foot"><span className="positive-dot" /> {tools.length === 0 ? 'Add your first tool to begin' : 'Everything where it belongs'} <ArrowUpRight size={13} /></div>
             </motion.article>
             <motion.article className="stat-card stat-card-due" initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.22 }}>
               <GlassSurface active={theme === 'dark'} />
               <span className="stat-label">NEEDS A LITTLE LOVE <Clock3 size={15} /></span>
               <div className="stat-value">{tasks.length}<span>tasks</span></div>
-              <div className="stat-foot"><span className="due-dot" /> {tasks.some((task) => task.state === 'Overdue') ? 'One is a little overdue' : 'You’re all caught up'} <ArrowUpRight size={13} /></div>
+              <div className="stat-foot"><span className="due-dot" /> {tasks.some((task) => task.state === 'Overdue') ? 'One is a little overdue' : tasks.length === 0 ? 'No reminders scheduled' : 'You’re all caught up'} <ArrowUpRight size={13} /></div>
             </motion.article>
             <motion.article className="stat-card" initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.28 }}>
               <GlassSurface active={theme === 'dark'} />
@@ -1177,7 +1163,12 @@ function App() {
               </div>
               <div className="task-list">
                 {visibleTasks.length === 0 && (
-                  <div className="all-done"><span><Check size={18} /></span><strong>All done for now.</strong><p>Every tool is ready for its next project.</p></div>
+                  <div className="all-done">
+                    <span><Check size={18} /></span>
+                    <strong>{tools.length === 0 ? 'Add a tool to get started.' : 'No maintenance reminders yet.'}</strong>
+                    <p>{tools.length === 0 ? 'Add a workshop tool before scheduling maintenance.' : 'Your scheduled maintenance will appear here.'}</p>
+                    {tools.length > 0 && <button className="text-button" onClick={() => { setTaskDueDate(localDateValue(new Date())); setModal('maintenance') }} type="button"><Plus size={14} /> Add reminder</button>}
+                  </div>
                 )}
                 {visibleTasks.map((task, index) => {
                   const Icon = task.icon
@@ -1242,7 +1233,7 @@ function App() {
                   </div>
                 )
               }) : (
-                <div className="stock-empty"><Check size={16} /><span>Your restock list is clear.</span></div>
+                <div className="stock-empty"><Check size={16} /><span>{stockItems.length === 0 ? 'No parts or materials added yet.' : 'Your restock list is clear.'}</span></div>
               )}
               <button className="stock-all" type="button" onClick={() => setShowRestockOnly((show) => !show)}>
                 {showRestockOnly ? `Show all ${stockItems.length} parts & materials` : `Restock list · ${restockCount} ${restockCount === 1 ? 'item' : 'items'}`} <ArrowRight size={14} />
@@ -1257,7 +1248,12 @@ function App() {
               <div className="tools-actions"><span className="tool-count">{filteredTools.length} of {tools.length} tools</span><button className="filter-button" type="button" onClick={() => setToast('Showing tools from your whole workshop.')}><Filter size={14} /> Filter</button><button className="icon-button tools-arrow" aria-label="See all tools" onClick={() => selectNavigation('My tools')} type="button"><ArrowRight size={16} /></button></div>
             </div>
             {filteredTools.length === 0 ? (
-              <div className="empty-search"><Search size={19} /><strong>No tools found</strong><span>Try another name, category, or location.</span></div>
+              <div className="empty-search">
+                <Search size={19} />
+                <strong>{tools.length === 0 ? 'No tools added yet' : 'No tools found'}</strong>
+                <span>{tools.length === 0 ? 'Add your first tool to start building your workshop.' : 'Try another name, category, or location.'}</span>
+                {tools.length === 0 && <button className="add-button" onClick={() => setModal('tool')} type="button"><Plus size={15} /> Add a tool</button>}
+              </div>
             ) : (
               <div className="tool-grid">
                 {filteredTools.map((tool, index) => (
