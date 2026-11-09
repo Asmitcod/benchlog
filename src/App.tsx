@@ -60,8 +60,15 @@ type ServiceTask = {
   action: string
   due: string
   state: 'Overdue' | 'Today' | 'Tomorrow' | 'This week'
+  recurrence?: MaintenanceRecurrence
   icon: typeof Wrench
   color: string
+}
+
+type MaintenanceRecurrence = 'none' | 'weekly' | 'monthly' | 'quarterly' | 'yearly'
+
+function isMaintenanceRecurrence(value: string): value is MaintenanceRecurrence {
+  return value === 'none' || value === 'weekly' || value === 'monthly' || value === 'quarterly' || value === 'yearly'
 }
 
 type CustomMaintenanceTask = {
@@ -69,6 +76,7 @@ type CustomMaintenanceTask = {
   tool: string
   action: string
   dueAt: string
+  recurrence?: MaintenanceRecurrence
 }
 
 type ServiceLog = {
@@ -219,7 +227,9 @@ function isCustomMaintenanceTask(value: unknown): value is CustomMaintenanceTask
     'tool' in value && typeof value.tool === 'string' &&
     'action' in value && typeof value.action === 'string' &&
     'dueAt' in value && typeof value.dueAt === 'string' &&
-    isValidLocalDate(value.dueAt)
+    isValidLocalDate(value.dueAt) &&
+    (!('recurrence' in value) || value.recurrence === 'none' || value.recurrence === 'weekly' ||
+      value.recurrence === 'monthly' || value.recurrence === 'quarterly' || value.recurrence === 'yearly')
   )
 }
 
@@ -300,6 +310,25 @@ function isValidLocalDate(value: string) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false
   const date = new Date(`${value}T00:00:00`)
   return Number.isFinite(date.getTime()) && localDateValue(date) === value
+}
+
+function addMonthsClamped(date: Date, months: number) {
+  const result = new Date(date)
+  const day = result.getDate()
+  result.setDate(1)
+  result.setMonth(result.getMonth() + months)
+  const lastDay = new Date(result.getFullYear(), result.getMonth() + 1, 0).getDate()
+  result.setDate(Math.min(day, lastDay))
+  return result
+}
+
+function nextDueDate(recurrence: MaintenanceRecurrence, completedAt: Date) {
+  const next = new Date(completedAt)
+  if (recurrence === 'weekly') next.setDate(next.getDate() + 7)
+  if (recurrence === 'monthly') return localDateValue(addMonthsClamped(next, 1))
+  if (recurrence === 'quarterly') return localDateValue(addMonthsClamped(next, 3))
+  if (recurrence === 'yearly') return localDateValue(addMonthsClamped(next, 12))
+  return localDateValue(next)
 }
 
 function getTaskDue(dueAt: string): Pick<ServiceTask, 'due' | 'state'> {
@@ -413,6 +442,7 @@ function App() {
     ...customMaintenanceTasks.map((task): ServiceTask => ({
       ...task,
       ...getTaskDue(task.dueAt),
+      recurrence: task.recurrence ?? 'none',
       icon: Wrench,
       color: 'mint',
     })),
@@ -524,7 +554,15 @@ function App() {
       note: note.trim(),
       completedAt,
     }, ...items])
-    setCompletedTaskIds((items) => items.includes(id) ? items : [...items, id])
+    const customTask = customMaintenanceTasks.find((item) => item.id === id)
+    const recurrence = customTask?.recurrence
+    if (recurrence && recurrence !== 'none') {
+      setCustomMaintenanceTasks((items) => items.map((item) => item.id === id
+        ? { ...item, dueAt: nextDueDate(recurrence, new Date(completedAt)) }
+        : item))
+    } else {
+      setCompletedTaskIds((items) => items.includes(id) ? items : [...items, id])
+    }
     setSelectedTask(null)
     setServiceNote('')
     setModal(null)
@@ -582,13 +620,21 @@ function App() {
     const action = String(formData.get('action')).trim()
     const tool = String(formData.get('tool'))
     const dueAt = String(formData.get('dueAt'))
+    const recurrence = String(formData.get('recurrence'))
     if (!action || !tools.some((item) => item.name === tool) ||
-      !isValidLocalDate(dueAt)) {
+      !isValidLocalDate(dueAt) ||
+      !isMaintenanceRecurrence(recurrence)) {
       setToast('Enter a task, choose a workshop tool, and set a valid due date.')
       return
     }
-    const id = Math.max(0, ...initialTasks.map((task) => task.id), ...customMaintenanceTasks.map((task) => task.id)) + 1
-    setCustomMaintenanceTasks((items) => [...items, { id, action, tool, dueAt }])
+    const id = Math.max(
+      0,
+      ...initialTasks.map((task) => task.id),
+      ...customMaintenanceTasks.map((task) => task.id),
+      ...completedTaskIds,
+      ...serviceLogs.map((log) => log.taskId),
+    ) + 1
+    setCustomMaintenanceTasks((items) => [...items, { id, action, tool, dueAt, recurrence }])
     setActiveSection('Maintenance')
     setModal(null)
     setToast(`Maintenance reminder added for ${tool}.`)
@@ -808,7 +854,10 @@ function App() {
                   return (
                     <motion.article className="task-row" key={task.id} initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: index * 0.06 }}>
                       <span className={`task-icon ${task.color}`}><Icon size={17} strokeWidth={1.8} /></span>
-                      <div className="task-main"><strong>{task.action}</strong><span>{task.tool}</span></div>
+                      <div className="task-main">
+                        <strong>{task.action}</strong>
+                        <span>{task.tool}{task.recurrence && task.recurrence !== 'none' ? ` · Repeats ${task.recurrence}` : ''}</span>
+                      </div>
                       <span className={`task-due ${task.state === 'Overdue' ? 'due-overdue' : ''}`}>{task.due}</span>
                       <button className="task-done" aria-label={`Log service: ${task.action}`} onClick={() => openService(task.id)} type="button"><Check size={15} /><span>Log it</span></button>
                       {customMaintenanceTasks.some((customTask) => customTask.id === task.id) && (
@@ -948,7 +997,7 @@ function App() {
                       return (
                         <div className="profile-task" key={task.id}>
                           <span className={`task-icon ${task.color}`}><Icon size={16} /></span>
-                          <div><strong>{task.action}</strong><span>{task.due}</span></div>
+                          <div><strong>{task.action}</strong><span>{task.due}{task.recurrence && task.recurrence !== 'none' ? ` · Repeats ${task.recurrence}` : ''}</span></div>
                           <button className="profile-log-button" onClick={() => { setProfileRoute(null); openService(task.id) }} type="button">Log service</button>
                         </div>
                       )
@@ -1048,6 +1097,15 @@ function App() {
                     </select>
                   </label>
                   <label>Due date<input name="dueAt" type="date" value={taskDueDate} onChange={(event) => setTaskDueDate(event.target.value)} required /></label>
+                  <label>Repeat
+                    <select name="recurrence" defaultValue="none">
+                      <option value="none">Does not repeat</option>
+                      <option value="weekly">Every week</option>
+                      <option value="monthly">Every month</option>
+                      <option value="quarterly">Every 3 months</option>
+                      <option value="yearly">Every year</option>
+                    </select>
+                  </label>
                   <div className="modal-actions"><button className="cancel-button" onClick={() => setModal(null)} type="button">Not now</button><button className="add-button" type="submit"><CalendarDays size={15} /> Save reminder</button></div>
                 </form>
               ) : (
