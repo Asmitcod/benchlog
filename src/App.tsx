@@ -35,6 +35,7 @@ import {
   Sparkles,
   Sun,
   Moon,
+  Trash2,
   Wrench,
   X,
 } from 'lucide-react'
@@ -61,6 +62,13 @@ type ServiceTask = {
   state: 'Overdue' | 'Today' | 'Tomorrow' | 'This week'
   icon: typeof Wrench
   color: string
+}
+
+type CustomMaintenanceTask = {
+  id: number
+  tool: string
+  action: string
+  dueAt: string
 }
 
 type ServiceLog = {
@@ -204,6 +212,32 @@ function readCompletedTaskIds(): number[] {
   return []
 }
 
+function isCustomMaintenanceTask(value: unknown): value is CustomMaintenanceTask {
+  if (typeof value !== 'object' || value === null) return false
+  return (
+    'id' in value && typeof value.id === 'number' && Number.isInteger(value.id) &&
+    'tool' in value && typeof value.tool === 'string' &&
+    'action' in value && typeof value.action === 'string' &&
+    'dueAt' in value && typeof value.dueAt === 'string' &&
+    isValidLocalDate(value.dueAt)
+  )
+}
+
+function readCustomMaintenanceTasks(): CustomMaintenanceTask[] {
+  const saved = localStorage.getItem('benchlog.custom-maintenance')
+  if (!saved) return []
+  try {
+    const value: unknown = JSON.parse(saved)
+    if (Array.isArray(value) && value.every(isCustomMaintenanceTask)) return value
+  } catch (error) {
+    if (!(error instanceof SyntaxError)) throw error
+    console.error('Saved custom maintenance tasks could not be read; starting with sample tasks.', error)
+    return []
+  }
+  console.error('Saved custom maintenance tasks were invalid; starting with sample tasks.')
+  return []
+}
+
 function isServiceLog(value: unknown): value is ServiceLog {
   if (typeof value !== 'object' || value === null) return false
   return (
@@ -253,6 +287,34 @@ const todayLabel = new Intl.DateTimeFormat('en', { weekday: 'long', month: 'long
   .toUpperCase()
 const shortDate = new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric' }).format(today)
 const serviceDateFormat = new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric', year: 'numeric' })
+const dayMilliseconds = 24 * 60 * 60 * 1000
+
+function localDateValue(date: Date) {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+function isValidLocalDate(value: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false
+  const date = new Date(`${value}T00:00:00`)
+  return Number.isFinite(date.getTime()) && localDateValue(date) === value
+}
+
+function getTaskDue(dueAt: string): Pick<ServiceTask, 'due' | 'state'> {
+  const dueDate = new Date(`${dueAt}T00:00:00`)
+  const todayDate = new Date()
+  todayDate.setHours(0, 0, 0, 0)
+  const daysUntilDue = Math.round((dueDate.getTime() - todayDate.getTime()) / dayMilliseconds)
+  if (daysUntilDue < 0) {
+    const daysOverdue = Math.abs(daysUntilDue)
+    return { due: `${daysOverdue} ${daysOverdue === 1 ? 'day' : 'days'} overdue`, state: 'Overdue' }
+  }
+  if (daysUntilDue === 0) return { due: 'Today', state: 'Today' }
+  if (daysUntilDue === 1) return { due: 'Tomorrow', state: 'Tomorrow' }
+  return { due: `In ${daysUntilDue} days`, state: 'This week' }
+}
 
 function formatServiceDate(value: string) {
   return serviceDateFormat.format(new Date(value))
@@ -343,11 +405,20 @@ function App() {
   const [activeSection, setActiveSection] = useState('Overview')
   const [tools, setTools] = useState(readSavedTools)
   const [stockItems, setStockItems] = useState(readStockItems)
+  const [customMaintenanceTasks, setCustomMaintenanceTasks] = useState(readCustomMaintenanceTasks)
   const [completedTaskIds, setCompletedTaskIds] = useState(readCompletedTaskIds)
   const [serviceLogs, setServiceLogs] = useState(readServiceLogs)
-  const tasks = useMemo(() => initialTasks.filter((task) => !completedTaskIds.includes(task.id)), [completedTaskIds])
+  const tasks = useMemo(() => [
+    ...initialTasks,
+    ...customMaintenanceTasks.map((task): ServiceTask => ({
+      ...task,
+      ...getTaskDue(task.dueAt),
+      icon: Wrench,
+      color: 'mint',
+    })),
+  ].filter((task) => !completedTaskIds.includes(task.id)), [completedTaskIds, customMaintenanceTasks])
   const [query, setQuery] = useState('')
-  const [modal, setModal] = useState<'tool' | 'service' | 'stock' | null>(null)
+  const [modal, setModal] = useState<'tool' | 'service' | 'stock' | 'maintenance' | null>(null)
   const [menuOpen, setMenuOpen] = useState(false)
   const [toast, setToast] = useState('')
   const [notificationOpen, setNotificationOpen] = useState(false)
@@ -355,6 +426,7 @@ function App() {
   const [serviceNote, setServiceNote] = useState('')
   const [profileToolId, setProfileToolId] = useState(readToolIdFromHash)
   const [showRestockOnly, setShowRestockOnly] = useState(false)
+  const [taskDueDate, setTaskDueDate] = useState(() => localDateValue(new Date()))
 
   useEffect(() => {
     if (!toast) return
@@ -369,6 +441,10 @@ function App() {
   useEffect(() => {
     localStorage.setItem('benchlog.stock', JSON.stringify(stockItems))
   }, [stockItems])
+
+  useEffect(() => {
+    localStorage.setItem('benchlog.custom-maintenance', JSON.stringify(customMaintenanceTasks))
+  }, [customMaintenanceTasks])
 
   useLayoutEffect(() => {
     localStorage.setItem('benchlog.theme', theme)
@@ -498,6 +574,29 @@ function App() {
     setShowRestockOnly(false)
     setModal(null)
     setToast(`${name} added to workshop stock.`)
+  }
+
+  function addMaintenanceTask(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const formData = new FormData(event.currentTarget)
+    const action = String(formData.get('action')).trim()
+    const tool = String(formData.get('tool'))
+    const dueAt = String(formData.get('dueAt'))
+    if (!action || !tools.some((item) => item.name === tool) ||
+      !isValidLocalDate(dueAt)) {
+      setToast('Enter a task, choose a workshop tool, and set a valid due date.')
+      return
+    }
+    const id = Math.max(0, ...initialTasks.map((task) => task.id), ...customMaintenanceTasks.map((task) => task.id)) + 1
+    setCustomMaintenanceTasks((items) => [...items, { id, action, tool, dueAt }])
+    setActiveSection('Maintenance')
+    setModal(null)
+    setToast(`Maintenance reminder added for ${tool}.`)
+  }
+
+  function removeMaintenanceTask(taskId: number) {
+    setCustomMaintenanceTasks((items) => items.filter((task) => task.id !== taskId))
+    setToast('Maintenance reminder removed.')
   }
 
   function addTool(event: FormEvent<HTMLFormElement>) {
@@ -695,7 +794,10 @@ function App() {
               <GlassSurface active={theme === 'dark'} />
               <div className="panel-heading">
                 <div><span className="section-eyebrow">KEEP THE GOOD WORK GOING</span><h2>On the bench</h2></div>
-                <button className="text-button" onClick={() => selectNavigation('Maintenance')} type="button">All maintenance <ArrowRight size={14} /></button>
+                <div className="maintenance-heading-actions">
+                  <button className="text-button" onClick={() => selectNavigation('Maintenance')} type="button">All maintenance <ArrowRight size={14} /></button>
+                  <button className="filter-button" onClick={() => { setTaskDueDate(localDateValue(new Date())); setModal('maintenance') }} type="button"><Plus size={14} /> Add reminder</button>
+                </div>
               </div>
               <div className="task-list">
                 {visibleTasks.length === 0 && (
@@ -709,6 +811,9 @@ function App() {
                       <div className="task-main"><strong>{task.action}</strong><span>{task.tool}</span></div>
                       <span className={`task-due ${task.state === 'Overdue' ? 'due-overdue' : ''}`}>{task.due}</span>
                       <button className="task-done" aria-label={`Log service: ${task.action}`} onClick={() => openService(task.id)} type="button"><Check size={15} /><span>Log it</span></button>
+                      {customMaintenanceTasks.some((customTask) => customTask.id === task.id) && (
+                        <button className="task-remove" aria-label={`Remove reminder: ${task.action}`} onClick={() => removeMaintenanceTask(task.id)} type="button"><Trash2 size={13} /></button>
+                      )}
                     </motion.article>
                   )
                 })}
@@ -910,7 +1015,7 @@ function App() {
         {modal && (
           <motion.div className="modal-backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onMouseDown={(event) => { if (event.target === event.currentTarget) setModal(null) }}>
             <motion.div className="modal-card" initial={{ opacity: 0, y: 16, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 10, scale: 0.98 }}>
-              <div className="modal-heading"><div><span className="section-eyebrow">{modal === 'tool' ? 'MAKE IT PART OF THE WORKSHOP' : modal === 'stock' ? 'KEEP THE SHELF IN CHECK' : 'A LITTLE CARE GOES A LONG WAY'}</span><h2>{modal === 'tool' ? 'Add a tool' : modal === 'stock' ? 'Add stock item' : 'Log a service'}</h2></div><button className="icon-button" aria-label="Close dialog" onClick={() => setModal(null)} type="button"><X size={18} /></button></div>
+              <div className="modal-heading"><div><span className="section-eyebrow">{modal === 'tool' ? 'MAKE IT PART OF THE WORKSHOP' : modal === 'stock' ? 'KEEP THE SHELF IN CHECK' : modal === 'maintenance' ? 'STAY AHEAD OF THE NEXT PROJECT' : 'A LITTLE CARE GOES A LONG WAY'}</span><h2>{modal === 'tool' ? 'Add a tool' : modal === 'stock' ? 'Add stock item' : modal === 'maintenance' ? 'Add maintenance reminder' : 'Log a service'}</h2></div><button className="icon-button" aria-label="Close dialog" onClick={() => setModal(null)} type="button"><X size={18} /></button></div>
               {modal === 'tool' ? (
                 <form className="modal-form" onSubmit={addTool}>
                   <label>Tool name<input autoFocus name="name" placeholder="e.g. Bandsaw" required /></label>
@@ -933,6 +1038,17 @@ function App() {
                   </div>
                   <p className="stock-form-hint">We’ll flag this item when its quantity reaches the low-stock threshold.</p>
                   <div className="modal-actions"><button className="cancel-button" onClick={() => setModal(null)} type="button">Not now</button><button className="add-button" type="submit"><Plus size={15} /> Add to stock</button></div>
+                </form>
+              ) : modal === 'maintenance' ? (
+                <form className="modal-form" onSubmit={addMaintenanceTask}>
+                  <label>What needs doing?<input autoFocus name="action" placeholder="e.g. Clean the dust filter" required /></label>
+                  <label>Which tool?
+                    <select name="tool" defaultValue={tools[0]?.name ?? ''} required>
+                      {tools.map((tool) => <option key={tool.id} value={tool.name}>{tool.name}</option>)}
+                    </select>
+                  </label>
+                  <label>Due date<input name="dueAt" type="date" value={taskDueDate} onChange={(event) => setTaskDueDate(event.target.value)} required /></label>
+                  <div className="modal-actions"><button className="cancel-button" onClick={() => setModal(null)} type="button">Not now</button><button className="add-button" type="submit"><CalendarDays size={15} /> Save reminder</button></div>
                 </form>
               ) : (
                 <form className="service-form" onSubmit={(event) => {

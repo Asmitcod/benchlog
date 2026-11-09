@@ -158,6 +158,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .panel-heading h2, .modal-heading h2 { margin: 5px 0 0; color: #30332b; font-family: Manrope, sans-serif; font-size: 17px; font-weight: 650; letter-spacing: -.55px; }
 .text-button { display: flex; align-items: center; gap: 6px; padding: 5px 0; border: 0; color: #728065; background: transparent; cursor: pointer; font-size: 9px; font-weight: 550; white-space: nowrap; }
 .text-button:hover, .stock-status button:hover { color: #344932; }
+.maintenance-heading-actions { display: flex; align-items: center; gap: 10px; }
 .task-list { min-height: 192px; margin-top: 14px; }
 .task-row { display: flex; min-height: 54px; align-items: center; gap: 10px; border-top: 1px solid #efefe9; }
 .task-icon { display: grid; width: 31px; height: 31px; flex: 0 0 31px; place-items: center; border-radius: 8px; color: #777166; }
@@ -172,6 +173,8 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .task-due.due-overdue { color: #b46e52; }
 .task-done { display: flex; height: 26px; align-items: center; gap: 4px; padding: 0 7px; border: 1px solid #e7e9df; border-radius: 5px; color: #6f7e63; background: #fbfcf8; cursor: pointer; font-size: 8px; transition: background .2s; }
 .task-done:hover { background: #eff3e8; }
+.task-remove { display: grid; width: 26px; height: 26px; flex: 0 0 26px; place-items: center; padding: 0; border: 1px solid transparent; border-radius: 5px; color: #9a8b81; background: transparent; cursor: pointer; }
+.task-remove:hover { border-color: #ead9d0; color: #a4614a; background: #fbf1ec; }
 .panel-footer { display: flex; min-height: 38px; align-items: center; justify-content: space-between; gap: 6px; border-top: 1px solid #ecece5; color: #929389; font-size: 8px; }
 .panel-footer > span { display: flex; align-items: center; gap: 6px; }
 .footer-status-dot { width: 5px; height: 5px; }
@@ -573,6 +576,8 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .app-shell[data-theme='dark'] .task-main > span, .app-shell[data-theme='dark'] .task-due, .app-shell[data-theme='dark'] .panel-footer { color: #aebaca; }
 .app-shell[data-theme='dark'] .task-done { border-color: #37546a; color: #a9e3ff; background: #10202b; }
 .app-shell[data-theme='dark'] .task-done:hover { background: #183143; }
+.app-shell[data-theme='dark'] .task-remove { color: #a6b4c2; }
+.app-shell[data-theme='dark'] .task-remove:hover { border-color: #604d43; color: #ffc2a3; background: #30231e; }
 .app-shell[data-theme='dark'] .text-button, .app-shell[data-theme='dark'] .panel-footer button { color: #8edaff; }
 .app-shell[data-theme='dark'] .all-done > span { color: #9de2ff; background: #162c3a; }
 .app-shell[data-theme='dark'] .all-done strong { color: #e5eef7; }
@@ -753,6 +758,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   .dashboard-grid { gap: 10px; margin-top: 15px; }
   .maintenance-panel, .stock-panel { padding-right: 12px; padding-left: 12px; }
   .panel-heading h2 { font-size: 16px; }
+  .maintenance-heading-actions { gap: 6px; }
   .text-button { gap: 3px; font-size: 8px; }
   .task-row { min-height: 53px; gap: 7px; }
   .task-icon { width: 28px; height: 28px; flex-basis: 28px; }
