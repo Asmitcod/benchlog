@@ -172,6 +172,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .task-main { display: grid; min-width: 0; flex: 1; gap: 4px; }
 .task-main strong { overflow: hidden; color: #3b3e35; font-size: 10px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
 .task-main > span { color: #999a91; font-size: 9px; }
+.record-attribution { overflow: hidden; color: #8d9187; font-size: 8px; font-weight: 400; text-overflow: ellipsis; white-space: nowrap; }
 .task-due { min-width: 76px; color: #85877e; font-size: 9px; text-align: right; white-space: nowrap; }
 .task-due.due-overdue { color: #b46e52; }
 .task-done { display: flex; height: 26px; align-items: center; gap: 4px; padding: 0 7px; border: 1px solid #e7e9df; border-radius: 5px; color: #6f7e63; background: #fbfcf8; cursor: pointer; font-size: 8px; transition: background .2s; }
@@ -201,6 +202,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .stock-info { display: grid; min-width: 0; flex: 1; gap: 4px; }
 .stock-info strong { overflow: hidden; color: #3b3e35; font-size: 10px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
 .stock-info > span { color: #929389; font-size: 8px; white-space: nowrap; }
+.stock-info .record-attribution { white-space: nowrap; }
 .stock-bullet { margin: 0 3px; color: #c3c4bb; }
 .stock-quantity { display: grid; min-width: 48px; gap: 3px; text-align: right; }
 .stock-quantity strong { color: #45483e; font-family: Manrope, sans-serif; font-size: 12px; font-weight: 650; }
@@ -445,6 +447,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .app-shell[data-theme='dark'] .task-icon.butter { color: #ddc58c; background: #322e20; }
 .app-shell[data-theme='dark'] .task-main strong { color: #dedfd6; }
 .app-shell[data-theme='dark'] .task-main > span, .app-shell[data-theme='dark'] .task-due { color: #a0a397; }
+.app-shell[data-theme='dark'] .record-attribution { color: #94a4b3; }
 .app-shell[data-theme='dark'] .task-due.due-overdue { color: #e1a080; }
 .app-shell[data-theme='dark'] .task-done { border-color: #3a4133; color: #c4d6aa; background: #20261d; }
 .app-shell[data-theme='dark'] .task-done:hover { background: #2a3425; }

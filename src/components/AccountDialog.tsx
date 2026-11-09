@@ -12,7 +12,9 @@ type AccountDialogProps = {
   user: User | null
   sessionError: string
   syncError: string
+  syncConflict: boolean
   syncStatus: 'local' | 'loading' | 'synced' | 'error'
+  onReloadSharedWorkshop: () => void
   onRetrySync: () => void
   onClose: () => void
 }
@@ -28,7 +30,9 @@ export default function AccountDialog({
   user,
   sessionError,
   syncError,
+  syncConflict,
   syncStatus,
+  onReloadSharedWorkshop,
   onRetrySync,
   onClose,
 }: AccountDialogProps) {
@@ -122,10 +126,10 @@ export default function AccountDialog({
               <p className="account-identity"><Mail size={15} />{user.email ?? 'Signed-in account'}</p>
               <p className="account-note">
                 {syncStatus === 'loading'
-                  ? 'Saving or loading your workshop data…'
+                  ? 'Saving or loading the shared workshop…'
                   : syncStatus === 'error'
-                    ? 'Your latest workshop changes may not be available on other devices yet.'
-                    : 'Workshop changes sync automatically across your signed-in devices.'}
+                    ? 'Shared changes may not appear for other signed-in members until sync succeeds.'
+                    : 'Every signed-in BenchLog account can view and edit this shared workshop. Your email appears on items and reminders you add.'}
               </p>
               {syncError && <p className="account-feedback account-error" role="alert">{syncError}</p>}
               {error && <p className="account-feedback account-error" role="alert">{error}</p>}
@@ -134,9 +138,9 @@ export default function AccountDialog({
                   <button className="cancel-button" onClick={onDownloadBackup} type="button">Download local backup</button>
                 )}
                 {syncStatus === 'error' && (
-                  <button className="cancel-button" onClick={onRetrySync} type="button">
-                    <RefreshCw size={14} /> Retry sync
-                  </button>
+                  syncConflict
+                    ? <button className="cancel-button" onClick={onReloadSharedWorkshop} type="button"><RefreshCw size={14} /> Reload shared workshop</button>
+                    : <button className="cancel-button" onClick={onRetrySync} type="button"><RefreshCw size={14} /> Retry sync</button>
                 )}
                 <button className="cancel-button" onClick={onClose} type="button">Close</button>
                 <button className="add-button" disabled={busy} onClick={() => void signOut()} type="button">
@@ -147,6 +151,7 @@ export default function AccountDialog({
           ) : (
             <form className="modal-form account-form" onSubmit={(event) => void sendSignInLink(event)}>
               <p className="account-note">We’ll email you a one-time sign-in link. No password to remember.</p>
+              <p className="account-note">All signed-in BenchLog accounts share one workshop. Members can view, edit, or delete its data, and contributor emails are visible.</p>
               {!client && <p className="account-feedback account-error" role="alert">{supabaseConfigurationError} Add your project values to `.env.local` and restart the app.</p>}
               {error && <p className="account-feedback account-error" role="alert">{error}</p>}
               {message && <p className="account-feedback account-success" role="status"><Check size={14} />{message}</p>}

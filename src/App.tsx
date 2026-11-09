@@ -34,6 +34,7 @@ import {
   Menu,
   Minus,
   MoreHorizontal,
+  Pencil,
   Plus,
   Printer,
   PocketKnife,
@@ -76,6 +77,7 @@ type Tool = {
     | 'ruler-dimension-line' | 'nut' | 'grip' | 'scissors' | 'file'
     | 'pencil-ruler' | 'anvil' | 'axe' | 'flashlight' | 'glasses' | 'briefcase' | 'boxes'
   color: string
+  createdBy?: string
 }
 
 type ServiceTask = {
@@ -85,6 +87,7 @@ type ServiceTask = {
   due: string
   state: 'Overdue' | 'Today' | 'Tomorrow' | 'This week'
   recurrence?: MaintenanceRecurrence
+  createdBy?: string
   icon: typeof Wrench
   color: string
 }
@@ -101,6 +104,7 @@ type CustomMaintenanceTask = {
   action: string
   dueAt: string
   recurrence?: MaintenanceRecurrence
+  createdBy?: string
 }
 
 type ServiceLog = {
@@ -110,6 +114,7 @@ type ServiceLog = {
   action: string
   note: string
   completedAt: string
+  createdBy?: string
 }
 
 type StockItem = {
@@ -122,6 +127,7 @@ type StockItem = {
   unit: string
   step: number
   onRestockList: boolean
+  createdBy?: string
 }
 
 type WorkshopSnapshot = {
@@ -153,7 +159,8 @@ function isStockItem(value: unknown): value is StockItem {
     'minimum' in value && typeof value.minimum === 'number' && Number.isFinite(value.minimum) && value.minimum >= 0 &&
     'unit' in value && typeof value.unit === 'string' && value.unit.trim().length > 0 &&
     'step' in value && typeof value.step === 'number' && Number.isFinite(value.step) && value.step > 0 &&
-    'onRestockList' in value && typeof value.onRestockList === 'boolean'
+    'onRestockList' in value && typeof value.onRestockList === 'boolean' &&
+    (!('createdBy' in value) || typeof value.createdBy === 'string')
   )
 }
 
@@ -239,7 +246,8 @@ function isTool(value: unknown): value is Tool {
       value.illustration === 'anvil' || value.illustration === 'axe' || value.illustration === 'flashlight' ||
       value.illustration === 'glasses' || value.illustration === 'briefcase' || value.illustration === 'boxes') &&
     'color' in value &&
-    typeof value.color === 'string'
+    typeof value.color === 'string' &&
+    (!('createdBy' in value) || typeof value.createdBy === 'string')
   )
 }
 
@@ -249,8 +257,7 @@ function readSavedTools(): Tool[] {
   try {
     const value: unknown = JSON.parse(saved)
     if (Array.isArray(value) && value.every(isTool)) {
-      const savedTools = applyStarterToolIllustrations(value.filter((tool) => !isBundledSampleTool(tool)))
-      return savedTools.length > 0 ? savedTools : initialTools
+      return applyStarterToolIllustrations(value.filter((tool) => !isBundledSampleTool(tool)))
     }
   } catch (error) {
     if (!(error instanceof SyntaxError)) throw error
@@ -286,6 +293,7 @@ function isCustomMaintenanceTask(value: unknown): value is CustomMaintenanceTask
     'action' in value && typeof value.action === 'string' &&
     'dueAt' in value && typeof value.dueAt === 'string' &&
     isValidLocalDate(value.dueAt) &&
+    (!('createdBy' in value) || typeof value.createdBy === 'string') &&
     (!('recurrence' in value) || value.recurrence === 'none' || value.recurrence === 'weekly' ||
       value.recurrence === 'monthly' || value.recurrence === 'quarterly' || value.recurrence === 'yearly')
   )
@@ -321,7 +329,8 @@ function isServiceLog(value: unknown): value is ServiceLog {
     typeof value.note === 'string' &&
     'completedAt' in value &&
     typeof value.completedAt === 'string' &&
-    Number.isFinite(Date.parse(value.completedAt))
+    Number.isFinite(Date.parse(value.completedAt)) &&
+    (!('createdBy' in value) || typeof value.createdBy === 'string')
   )
 }
 
@@ -356,13 +365,40 @@ function isWorkshopSnapshot(value: unknown): value is WorkshopSnapshot {
 }
 
 function removeBundledSampleData(snapshot: WorkshopSnapshot): WorkshopSnapshot {
-  const savedTools = applyStarterToolIllustrations(snapshot.tools.filter((tool) => !isBundledSampleTool(tool)))
   return {
     ...snapshot,
-    tools: savedTools.length > 0 ? savedTools : initialTools,
+    tools: applyStarterToolIllustrations(snapshot.tools.filter((tool) => !isBundledSampleTool(tool))),
     stockItems: snapshot.stockItems.filter((item) => !isBundledSampleStock(item)),
     completedTaskIds: snapshot.completedTaskIds.filter((id) => !legacySampleTaskIds.has(id)),
     serviceLogs: snapshot.serviceLogs.filter((log) => log.taskId === null || !legacySampleTaskIds.has(log.taskId)),
+  }
+}
+
+function mergeWorkshopSnapshots(local: WorkshopSnapshot, legacy: WorkshopSnapshot): WorkshopSnapshot {
+  const mergeById = <T extends { id: string | number }>(preferred: T[], fallback: T[]) => {
+    const ids = new Set(preferred.map((item) => item.id))
+    return [...preferred, ...fallback.filter((item) => !ids.has(item.id))]
+  }
+
+  return {
+    tools: mergeById(local.tools, legacy.tools),
+    stockItems: mergeById(local.stockItems, legacy.stockItems),
+    customMaintenanceTasks: mergeById(local.customMaintenanceTasks, legacy.customMaintenanceTasks),
+    completedTaskIds: [...new Set([...local.completedTaskIds, ...legacy.completedTaskIds])],
+    serviceLogs: mergeById(local.serviceLogs, legacy.serviceLogs),
+  }
+}
+
+function attributeExistingSnapshot(snapshot: WorkshopSnapshot, email: string): WorkshopSnapshot {
+  return {
+    ...snapshot,
+    tools: snapshot.tools.map((tool) => ({
+      ...tool,
+      createdBy: tool.createdBy ?? (starterIllustrations.has(`${tool.id}:${tool.name}`) ? undefined : email),
+    })),
+    stockItems: snapshot.stockItems.map((item) => ({ ...item, createdBy: item.createdBy ?? email })),
+    customMaintenanceTasks: snapshot.customMaintenanceTasks.map((task) => ({ ...task, createdBy: task.createdBy ?? email })),
+    serviceLogs: snapshot.serviceLogs.map((log) => ({ ...log, createdBy: log.createdBy ?? email })),
   }
 }
 
@@ -585,6 +621,7 @@ const navItems = [
   { label: 'Parts & stock', icon: Box, alert: true },
   { label: 'Documents', icon: FileText },
 ]
+const sharedWorkspaceId = 1
 
 function App() {
   const { session, error: authSessionError } = useAuthSession(supabaseClient)
@@ -599,13 +636,17 @@ function App() {
   const [serviceLogs, setServiceLogs] = useState(readServiceLogs)
   const [syncStatus, setSyncStatus] = useState<SyncStatus>('local')
   const [syncError, setSyncError] = useState('')
+  const [syncConflict, setSyncConflict] = useState(false)
   const [syncReadyFor, setSyncReadyFor] = useState<string | null>(null)
+  const [migratedOwnerIds, setMigratedOwnerIds] = useState<string[]>([])
   const [hasLocalBackup, setHasLocalBackup] = useState(false)
   const [syncRetry, setSyncRetry] = useState(0)
   const [loadRetry, setLoadRetry] = useState(0)
   const syncRequest = useRef(0)
   const lastCloudSnapshot = useRef<string | null>(null)
+  const lastCloudUpdatedAt = useRef<string | null>(null)
   const userId = session?.user.id ?? null
+  const accountEmail = session?.user.email ?? null
   const workshopSnapshot = useMemo<WorkshopSnapshot>(() => ({
     tools,
     stockItems,
@@ -641,8 +682,11 @@ function App() {
     setSyncReadyFor(null)
     setSyncStatus('loading')
     setSyncError('')
+    setSyncConflict(false)
+    lastCloudSnapshot.current = null
+    lastCloudUpdatedAt.current = null
 
-    const applyCloudSnapshot = (value: unknown) => {
+    const applyCloudSnapshot = (value: unknown, updatedAt: string, fromRealtime = false) => {
       if (!active) return
       if (!isWorkshopSnapshot(value)) {
         throw new Error('The saved cloud workshop data is invalid. Your local data was left unchanged.')
@@ -652,6 +696,15 @@ function App() {
       const cloudSnapshot = removeBundledSampleData(value)
       const localSerialized = serializeSnapshot(localSnapshot)
       const cloudSerialized = serializeSnapshot(cloudSnapshot)
+      const lastSavedSnapshot = lastCloudSnapshot.current
+      if (fromRealtime && lastSavedSnapshot !== null &&
+        localSerialized !== lastSavedSnapshot && cloudSerialized !== localSerialized) {
+        setHasLocalBackup(backupLocalSnapshot(userId, localSnapshot))
+        setSyncConflict(true)
+        setSyncError('The shared workshop changed while you were editing. Your local changes are backed up; reload the shared copy before continuing.')
+        setSyncStatus('error')
+        return
+      }
       setHasLocalBackup(localStorage.getItem(`benchlog.local-backups.${userId}`) !== null)
 
       if (localSerialized !== cloudSerialized) {
@@ -666,44 +719,95 @@ function App() {
       }
 
       lastCloudSnapshot.current = serializeSnapshot(value)
+      lastCloudUpdatedAt.current = updatedAt
       setSyncReadyFor(userId)
       setSyncStatus('synced')
     }
 
     const loadCloudSnapshot = async () => {
       const { data, error } = await client
-        .from('workshop_snapshots')
-        .select('data')
-        .eq('owner_id', userId)
+        .from('shared_workshop')
+        .select('data, migrated_owner_ids, updated_at')
+        .eq('workspace_id', sharedWorkspaceId)
         .maybeSingle()
       if (error) throw error
       if (!active) return
       if (data) {
-        applyCloudSnapshot(data.data)
+        const existingOwnerIds = Array.isArray(data.migrated_owner_ids) ? data.migrated_owner_ids : []
+        if (existingOwnerIds.includes(userId)) {
+          setMigratedOwnerIds(existingOwnerIds)
+          applyCloudSnapshot(data.data, data.updated_at)
+          return
+        }
+
+        const { data: legacyData, error: legacyError } = await client
+          .from('workshop_snapshots')
+          .select('data')
+          .eq('owner_id', userId)
+          .maybeSingle()
+        if (legacyError) throw legacyError
+        if (legacyData && !isWorkshopSnapshot(legacyData.data)) {
+          throw new Error('Your saved workshop data is invalid and could not be moved into the shared workspace.')
+        }
+
+        const sharedSnapshot = removeBundledSampleData(data.data)
+        const memberSnapshot = attributeExistingSnapshot(
+          legacyData
+            ? mergeWorkshopSnapshots(workshopSnapshotRef.current, removeBundledSampleData(legacyData.data))
+            : workshopSnapshotRef.current,
+          accountEmail ?? 'Signed-in member',
+        )
+        const mergedSnapshot = mergeWorkshopSnapshots(sharedSnapshot, memberSnapshot)
+        const nextOwnerIds = [...existingOwnerIds, userId]
+        const { data: imported, error: importError } = await client
+          .from('shared_workshop')
+          .update({
+            data: mergedSnapshot,
+            migrated_owner_ids: nextOwnerIds,
+            updated_at: new Date(Math.max(Date.now(), Date.parse(data.updated_at) + 1)).toISOString(),
+          })
+          .eq('workspace_id', sharedWorkspaceId)
+          .eq('updated_at', data.updated_at)
+          .select('updated_at')
+          .maybeSingle()
+        if (importError) throw importError
+        if (!imported) throw new Error('The shared workshop changed during account import. Retry to include your saved records.')
+        setMigratedOwnerIds(nextOwnerIds)
+        applyCloudSnapshot(mergedSnapshot, imported.updated_at)
         return
       }
 
       const localSnapshot = workshopSnapshotRef.current
-      const { error: insertError } = await client
+      const { data: legacyData, error: legacyError } = await client
         .from('workshop_snapshots')
-        .insert({ owner_id: userId, data: localSnapshot })
+        .select('data')
+        .eq('owner_id', userId)
+        .maybeSingle()
+      if (legacyError) throw legacyError
+      if (legacyData && !isWorkshopSnapshot(legacyData.data)) {
+        throw new Error('Your saved workshop data is invalid and could not be moved into the shared workspace.')
+      }
+      const seedSnapshot = attributeExistingSnapshot(
+        legacyData
+          ? mergeWorkshopSnapshots(localSnapshot, removeBundledSampleData(legacyData.data))
+          : localSnapshot,
+        accountEmail ?? 'Signed-in member',
+      )
+      const { data: inserted, error: insertError } = await client
+        .from('shared_workshop')
+        .insert({ workspace_id: sharedWorkspaceId, data: seedSnapshot, migrated_owner_ids: [userId] })
+        .select('updated_at')
+        .single()
       if (!active) return
 
       if (insertError?.code === '23505') {
-        const { data: existing, error: reloadError } = await client
-          .from('workshop_snapshots')
-          .select('data')
-          .eq('owner_id', userId)
-          .single()
-        if (reloadError) throw reloadError
-        applyCloudSnapshot(existing.data)
+        setLoadRetry((retry) => retry + 1)
         return
       }
       if (insertError) throw insertError
 
-      lastCloudSnapshot.current = serializeSnapshot(localSnapshot)
-      setSyncReadyFor(userId)
-      setSyncStatus('synced')
+      setMigratedOwnerIds([userId])
+      applyCloudSnapshot(seedSnapshot, inserted.updated_at)
     }
 
     void loadCloudSnapshot().catch((error: unknown) => {
@@ -713,11 +817,42 @@ function App() {
       setSyncStatus('error')
     })
 
+    const channel = client
+      .channel('shared-workshop')
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'shared_workshop',
+        filter: `workspace_id=eq.${sharedWorkspaceId}`,
+      }, (payload) => {
+        if (!active || !payload.new || !('data' in payload.new) ||
+          !('updated_at' in payload.new) || typeof payload.new.updated_at !== 'string') return
+        if ('migrated_owner_ids' in payload.new && Array.isArray(payload.new.migrated_owner_ids)) {
+          setMigratedOwnerIds(payload.new.migrated_owner_ids)
+        }
+        try {
+          applyCloudSnapshot(payload.new.data, payload.new.updated_at, true)
+        } catch (error: unknown) {
+          console.error('BenchLog could not apply a shared workshop update.', error)
+          setSyncError(error instanceof Error ? error.message : 'Could not apply a shared workshop update.')
+          setSyncStatus('error')
+        }
+      })
+      .subscribe((status, error) => {
+        if (!active || status === 'SUBSCRIBED') return
+        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+          console.error('BenchLog could not subscribe to shared workshop updates.', error)
+          setSyncError(error?.message ?? 'Could not receive live workshop updates.')
+          setSyncStatus('error')
+        }
+      })
+
     return () => {
       active = false
+      void client.removeChannel(channel)
       syncRequest.current += 1
     }
-  }, [loadRetry, userId])
+  }, [accountEmail, loadRetry, userId])
 
   useEffect(() => {
     const client = supabaseClient
@@ -725,6 +860,13 @@ function App() {
 
     const serializedSnapshot = serializeSnapshot(workshopSnapshot)
     if (serializedSnapshot === lastCloudSnapshot.current) return
+    const expectedUpdatedAt = lastCloudUpdatedAt.current
+    if (!expectedUpdatedAt) {
+      setSyncError('The shared workshop version is unavailable. Reload the shared copy before syncing.')
+      setSyncConflict(true)
+      setSyncStatus('error')
+      return
+    }
 
     const requestId = ++syncRequest.current
     setSyncStatus('loading')
@@ -732,13 +874,18 @@ function App() {
     const timeout = window.setTimeout(() => {
       const syncSnapshot = async () => {
         try {
-          const { error } = await client
-            .from('workshop_snapshots')
-            .upsert({
-              owner_id: userId,
+          const nextUpdatedAt = new Date(Math.max(Date.now(), Date.parse(expectedUpdatedAt) + 1)).toISOString()
+          const { data: updated, error } = await client
+            .from('shared_workshop')
+            .update({
               data: workshopSnapshot,
-              updated_at: new Date().toISOString(),
-            }, { onConflict: 'owner_id' })
+              migrated_owner_ids: migratedOwnerIds,
+              updated_at: nextUpdatedAt,
+            })
+            .eq('workspace_id', sharedWorkspaceId)
+            .eq('updated_at', expectedUpdatedAt)
+            .select('updated_at')
+            .maybeSingle()
           if (requestId !== syncRequest.current) return
           if (error) {
             console.error('BenchLog could not sync workshop changes.', error)
@@ -746,7 +893,17 @@ function App() {
             setSyncStatus('error')
             return
           }
+          if (!updated) {
+            const backupAvailable = backupLocalSnapshot(userId, workshopSnapshotRef.current)
+            setHasLocalBackup(backupAvailable)
+            setSyncConflict(true)
+            setSyncError('The shared workshop changed while you were editing. Your local changes are backed up; reload the shared copy before continuing.')
+            setSyncStatus('error')
+            return
+          }
           lastCloudSnapshot.current = serializedSnapshot
+          lastCloudUpdatedAt.current = updated.updated_at
+          setSyncConflict(false)
           setSyncStatus('synced')
         } catch (error: unknown) {
           if (requestId !== syncRequest.current) return
@@ -761,7 +918,7 @@ function App() {
     return () => {
       window.clearTimeout(timeout)
     }
-  }, [syncRetry, syncReadyFor, userId, workshopSnapshot])
+  }, [migratedOwnerIds, syncRetry, syncReadyFor, userId, workshopSnapshot])
 
   const tasks = useMemo(() => [
     ...customMaintenanceTasks.map((task): ServiceTask => ({
@@ -773,7 +930,11 @@ function App() {
     })),
   ].filter((task) => !completedTaskIds.includes(task.id)), [completedTaskIds, customMaintenanceTasks])
   const [query, setQuery] = useState('')
-  const [modal, setModal] = useState<'tool' | 'service' | 'stock' | 'maintenance' | null>(null)
+  const [modal, setModal] = useState<'tool' | 'service' | 'stock' | 'maintenance' | 'edit-log' | null>(null)
+  const [editingToolId, setEditingToolId] = useState<string | null>(null)
+  const [editingStockItemId, setEditingStockItemId] = useState<string | null>(null)
+  const [editingMaintenanceTaskId, setEditingMaintenanceTaskId] = useState<number | null>(null)
+  const [editingServiceLogId, setEditingServiceLogId] = useState<string | null>(null)
   const [menuOpen, setMenuOpen] = useState(false)
   const [accountOpen, setAccountOpen] = useState(false)
   const [toast, setToast] = useState('')
@@ -830,7 +991,16 @@ function App() {
     [query, tools],
   )
   const profileTool = tools.find((tool) => tool.id === profileToolId)
-  const accountEmail = session?.user.email ?? null
+  const editingTool = editingToolId ? tools.find((tool) => tool.id === editingToolId) : undefined
+  const editingStockItem = editingStockItemId
+    ? stockItems.find((item) => item.id === editingStockItemId)
+    : undefined
+  const editingMaintenanceTask = editingMaintenanceTaskId === null
+    ? undefined
+    : customMaintenanceTasks.find((task) => task.id === editingMaintenanceTaskId)
+  const editingServiceLog = editingServiceLogId
+    ? serviceLogs.find((log) => log.id === editingServiceLogId)
+    : undefined
   const accountInitials = accountEmail ? accountEmail.slice(0, 2).toUpperCase() : 'L'
   const syncStatusLabel = !accountEmail
     ? 'Local-only data'
@@ -929,6 +1099,7 @@ function App() {
       action: task.action,
       note: note.trim(),
       completedAt,
+      createdBy: accountEmail ?? 'Signed-in member',
     }, ...items])
     const customTask = customMaintenanceTasks.find((item) => item.id === id)
     const recurrence = customTask?.recurrence
@@ -958,6 +1129,7 @@ function App() {
       action: action.trim(),
       note: note.trim(),
       completedAt,
+      createdBy: accountEmail ?? 'Signed-in member',
     }, ...items])
     setSelectedTask(null)
     setServiceNote('')
@@ -980,6 +1152,13 @@ function App() {
     setToast(item.onRestockList ? `${item.name} removed from your restock list.` : `${item.name} added to your restock list.`)
   }
 
+  function removeStockItem(itemId: string) {
+    const item = stockItems.find((stockItem) => stockItem.id === itemId)
+    if (!item || !window.confirm(`Remove ${item.name} from workshop stock?`)) return
+    setStockItems((items) => items.filter((stockItem) => stockItem.id !== itemId))
+    setToast(`${item.name} removed from workshop stock.`)
+  }
+
   function addStockItem(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     const formData = new FormData(event.currentTarget)
@@ -993,8 +1172,15 @@ function App() {
       setToast('Enter a name and valid stock amounts. The low-stock threshold must not exceed capacity.')
       return
     }
+    const existing = editingStockItemId
+      ? stockItems.find((stockItem) => stockItem.id === editingStockItemId)
+      : undefined
+    if (editingStockItemId && !existing) {
+      setToast('This stock item is no longer available. Refresh and try again.')
+      return
+    }
     const item: StockItem = {
-      id: `ST-${crypto.randomUUID()}`,
+      id: existing?.id ?? `ST-${crypto.randomUUID()}`,
       name,
       location: String(formData.get('location')).trim() || 'Workshop',
       quantity,
@@ -1002,12 +1188,16 @@ function App() {
       minimum,
       unit,
       step: unit === 'kg' ? 0.1 : 1,
-      onRestockList: false,
+      onRestockList: existing?.onRestockList ?? false,
+      createdBy: existing?.createdBy ?? accountEmail ?? 'Signed-in member',
     }
-    setStockItems((items) => [...items, item])
+    setStockItems((items) => existing
+      ? items.map((stockItem) => stockItem.id === existing.id ? item : stockItem)
+      : [...items, item])
+    setEditingStockItemId(null)
     setShowRestockOnly(false)
     setModal(null)
-    setToast(`${name} added to workshop stock.`)
+    setToast(existing ? `${name} updated in workshop stock.` : `${name} added to workshop stock.`)
   }
 
   function addMaintenanceTask(event: FormEvent<HTMLFormElement>) {
@@ -1023,21 +1213,72 @@ function App() {
       setToast('Enter a task, choose a workshop tool, and set a valid due date.')
       return
     }
-    const id = Math.max(
-      0,
-      ...customMaintenanceTasks.map((task) => task.id),
-      ...completedTaskIds,
-      ...serviceLogs.flatMap((log) => log.taskId === null ? [] : [log.taskId]),
-    ) + 1
-    setCustomMaintenanceTasks((items) => [...items, { id, action, tool, dueAt, recurrence }])
+    const existing = editingMaintenanceTaskId === null
+      ? undefined
+      : customMaintenanceTasks.find((task) => task.id === editingMaintenanceTaskId)
+    if (editingMaintenanceTaskId !== null && !existing) {
+      setToast('That maintenance reminder is no longer available.')
+      return
+    }
+    if (existing) {
+      setCustomMaintenanceTasks((items) => items.map((task) => task.id === existing.id
+        ? { ...task, action, tool, dueAt, recurrence }
+        : task))
+    } else {
+      const id = Number.parseInt(crypto.randomUUID().replaceAll('-', '').slice(0, 12), 16)
+      setCustomMaintenanceTasks((items) => [...items, { id, action, tool, dueAt, recurrence, createdBy: accountEmail ?? 'Signed-in member' }])
+    }
     setActiveSection('Maintenance')
+    setEditingMaintenanceTaskId(null)
     setModal(null)
-    setToast(`Maintenance reminder added for ${tool}.`)
+    setToast(existing ? `Maintenance reminder updated for ${tool}.` : `Maintenance reminder added for ${tool}.`)
   }
 
   function removeMaintenanceTask(taskId: number) {
+    const task = customMaintenanceTasks.find((item) => item.id === taskId)
+    if (!task || !window.confirm(`Remove the reminder “${task.action}”?`)) return
     setCustomMaintenanceTasks((items) => items.filter((task) => task.id !== taskId))
+    setCompletedTaskIds((items) => items.filter((id) => id !== taskId))
     setToast('Maintenance reminder removed.')
+  }
+
+  function removeServiceLog(logId: string) {
+    const log = serviceLogs.find((item) => item.id === logId)
+    if (!log || !window.confirm(`Delete the service record “${log.action}”?`)) return
+    setServiceLogs((items) => items.filter((item) => item.id !== logId))
+    setToast('Service record deleted.')
+  }
+
+  function editServiceLog(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const formData = new FormData(event.currentTarget)
+    const tool = String(formData.get('tool'))
+    const action = String(formData.get('action')).trim()
+    const note = String(formData.get('note')).trim()
+    const existing = serviceLogs.find((log) => log.id === editingServiceLogId)
+    if (!existing || !tools.some((item) => item.name === tool) || !action) {
+      setToast('Choose a workshop tool and describe the service.')
+      return
+    }
+    setServiceLogs((items) => items.map((log) => log.id === existing.id
+      ? { ...log, tool, action, note }
+      : log))
+    setEditingServiceLogId(null)
+    setModal(null)
+    setToast('Service record updated.')
+  }
+
+  function removeTool(toolId: string) {
+    const tool = tools.find((item) => item.id === toolId)
+    if (!tool || !window.confirm(`Remove ${tool.name} and its maintenance reminders?`)) return
+    const removedTaskIds = customMaintenanceTasks
+      .filter((task) => task.tool === tool.name)
+      .map((task) => task.id)
+    setTools((items) => items.filter((item) => item.id !== toolId))
+    setCustomMaintenanceTasks((items) => items.filter((task) => task.tool !== tool.name))
+    setCompletedTaskIds((items) => items.filter((id) => !removedTaskIds.includes(id)))
+    setProfileRoute(null)
+    setToast(`${tool.name} removed from the workshop.`)
   }
 
   function addTool(event: FormEvent<HTMLFormElement>) {
@@ -1045,7 +1286,29 @@ function App() {
     const formData = new FormData(event.currentTarget)
     const name = String(formData.get('name')).trim()
     if (!name) return
-    const id = `TL-${String(tools.length + 1).padStart(3, '0')}`
+    const existing = editingToolId ? tools.find((tool) => tool.id === editingToolId) : undefined
+    if (editingToolId && !existing) {
+      setToast('That tool is no longer available.')
+      return
+    }
+    if (existing) {
+      const updatedTool = {
+        ...existing,
+        name,
+        category: String(formData.get('category')),
+        model: String(formData.get('model') || 'Model not added'),
+        location: String(formData.get('location') || 'Workshop'),
+      }
+      setTools((items) => items.map((tool) => tool.id === existing.id ? updatedTool : tool))
+      setCustomMaintenanceTasks((items) => items.map((task) => task.tool === existing.name
+        ? { ...task, tool: updatedTool.name }
+        : task))
+      setEditingToolId(null)
+      setModal(null)
+      setToast(`${name} updated in your workshop.`)
+      return
+    }
+    const id = `TL-${crypto.randomUUID()}`
     setTools((items) => [
       ...items,
       {
@@ -1057,6 +1320,7 @@ function App() {
         status: 'Good',
         illustration: 'drill',
         color: 'blue',
+        createdBy: accountEmail ?? 'Signed-in member',
       },
     ])
     setModal(null)
@@ -1079,6 +1343,30 @@ function App() {
     setMenuOpen(false)
   }
 
+  function openAddTool() {
+    setEditingToolId(null)
+    setModal('tool')
+  }
+
+  function openAddStockItem() {
+    setEditingStockItemId(null)
+    setModal('stock')
+  }
+
+  function openAddMaintenanceTask() {
+    setEditingMaintenanceTaskId(null)
+    setTaskDueDate(localDateValue(new Date()))
+    setModal('maintenance')
+  }
+
+  function editMaintenanceTask(taskId: number) {
+    const task = customMaintenanceTasks.find((item) => item.id === taskId)
+    if (!task) return
+    setEditingMaintenanceTaskId(taskId)
+    setTaskDueDate(task.dueAt)
+    setModal('maintenance')
+  }
+
   const visibleTasks = activeSection === 'Maintenance' ? tasks : tasks.slice(0, 3)
 
   return (
@@ -1091,7 +1379,7 @@ function App() {
 
         <button className="workshop-switcher" type="button" onClick={() => setAccountOpen(true)}>
           <span className="workshop-avatar">{accountInitials}</span>
-          <span className="workshop-copy"><strong>{accountEmail ? 'Your workshop' : 'Local workshop'}</strong><small>{accountEmail ?? 'Personal space'}</small></span>
+          <span className="workshop-copy"><strong>{accountEmail ? 'Shared workshop' : 'Local workshop'}</strong><small>{accountEmail ?? 'Personal space'}</small></span>
           <ChevronDown size={15} />
         </button>
 
@@ -1165,7 +1453,7 @@ function App() {
             <button className="icon-button" aria-label={accountEmail ? 'Account settings' : 'Sign in'} onClick={() => setAccountOpen(true)} type="button">
               <UserRound size={17} />
             </button>
-            <button className="add-button top-add" onClick={() => setModal('tool')} type="button"><Plus size={16} /> Add a tool</button>
+            <button className="add-button top-add" onClick={openAddTool} type="button"><Plus size={16} /> Add a tool</button>
             <AnimatePresence>
               {notificationOpen && (
                 <motion.div className="notification-popover" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 8 }}>
@@ -1245,7 +1533,7 @@ function App() {
                 <div><span className="section-eyebrow">KEEP THE GOOD WORK GOING</span><h2>On the bench</h2></div>
                 <div className="maintenance-heading-actions">
                   <button className="text-button" onClick={() => selectNavigation('Maintenance')} type="button">All maintenance <ArrowRight size={14} /></button>
-                  <button className="filter-button" onClick={() => { setTaskDueDate(localDateValue(new Date())); setModal('maintenance') }} type="button"><Plus size={14} /> Add reminder</button>
+                  <button className="filter-button" onClick={openAddMaintenanceTask} type="button"><Plus size={14} /> Add reminder</button>
                 </div>
               </div>
               <div className="task-list">
@@ -1254,7 +1542,7 @@ function App() {
                     <span><Check size={18} /></span>
                     <strong>{tools.length === 0 ? 'Add a tool to get started.' : 'No maintenance reminders yet.'}</strong>
                     <p>{tools.length === 0 ? 'Add a workshop tool before scheduling maintenance.' : 'Your scheduled maintenance will appear here.'}</p>
-                    {tools.length > 0 && <button className="text-button" onClick={() => { setTaskDueDate(localDateValue(new Date())); setModal('maintenance') }} type="button"><Plus size={14} /> Add reminder</button>}
+                    {tools.length > 0 && <button className="text-button" onClick={openAddMaintenanceTask} type="button"><Plus size={14} /> Add reminder</button>}
                   </div>
                 )}
                 {visibleTasks.map((task, index) => {
@@ -1265,12 +1553,12 @@ function App() {
                       <div className="task-main">
                         <strong>{task.action}</strong>
                         <span>{task.tool}{task.recurrence && task.recurrence !== 'none' ? ` · Repeats ${task.recurrence}` : ''}</span>
+                        <small className="record-attribution">Added by {task.createdBy ?? 'an earlier member'}</small>
                       </div>
                       <span className={`task-due ${task.state === 'Overdue' ? 'due-overdue' : ''}`}>{task.due}</span>
                       <button className="task-done" aria-label={`Log service: ${task.action}`} onClick={() => openService(task.id)} type="button"><Check size={15} /><span>Log it</span></button>
-                      {customMaintenanceTasks.some((customTask) => customTask.id === task.id) && (
-                        <button className="task-remove" aria-label={`Remove reminder: ${task.action}`} onClick={() => removeMaintenanceTask(task.id)} type="button"><Trash2 size={13} /></button>
-                      )}
+                      <button className="task-remove" aria-label={`Edit reminder: ${task.action}`} onClick={() => editMaintenanceTask(task.id)} type="button"><Pencil size={13} /></button>
+                      <button className="task-remove" aria-label={`Remove reminder: ${task.action}`} onClick={() => removeMaintenanceTask(task.id)} type="button"><Trash2 size={13} /></button>
                     </motion.article>
                   )
                 })}
@@ -1287,7 +1575,7 @@ function App() {
                 <div><span className="section-eyebrow">BEFORE YOU RUN OUT</span><h2>On the shelf</h2></div>
                 <div className="stock-heading-actions">
                   <button className="filter-button" aria-label={showRestockOnly ? 'Show all stock' : 'Show restock list'} onClick={() => setShowRestockOnly((show) => !show)} type="button"><Filter size={14} /></button>
-                  <button className="filter-button" onClick={() => setModal('stock')} type="button"><Plus size={14} /> Add item</button>
+                  <button className="filter-button" onClick={openAddStockItem} type="button"><Plus size={14} /> Add item</button>
                 </div>
               </div>
               {visibleStock.length > 0 ? visibleStock.map((item, index) => {
@@ -1302,7 +1590,11 @@ function App() {
                       <span className={`stock-image ${item.unit === 'kg' ? 'filament' : 'filter'}`}>
                         {item.unit === 'kg' ? <span /> : item.name.toLowerCase().includes('filter') ? <LifeBuoy size={19} strokeWidth={1.5} /> : <Box size={18} strokeWidth={1.5} />}
                       </span>
-                      <div className="stock-info"><strong>{item.name}</strong><span>{item.location}</span></div>
+                      <div className="stock-info">
+                        <strong>{item.name}</strong>
+                        <span>{item.location}</span>
+                        <small className="record-attribution">Added by {item.createdBy ?? 'an earlier member'}</small>
+                      </div>
                       <div className="stock-quantity">
                         <strong>{quantityLabel} <small>{item.unit}</small></strong>
                         <span>of {capacityLabel} {item.unit}</span>
@@ -1315,6 +1607,8 @@ function App() {
                     <div className="stock-progress"><span className={item.unit === 'kg' ? 'progress-filament' : 'progress-filter'} style={{ width: `${progress}%` }} /></div>
                     <div className="stock-status">
                       <span className={`status-pill ${isLow ? item.quantity === 0 ? 'status-low' : 'status-soon' : 'status-good'}`}><span />{item.quantity === 0 ? 'Out of stock' : isLow ? 'Running low' : 'In good shape'}</span>
+                      <button aria-label={`Edit ${item.name}`} type="button" onClick={() => { setEditingStockItemId(item.id); setModal('stock') }}><Pencil size={13} /> Edit</button>
+                      <button aria-label={`Delete ${item.name}`} type="button" onClick={() => removeStockItem(item.id)}><Trash2 size={13} /> Delete</button>
                       <button aria-pressed={item.onRestockList} type="button" onClick={() => toggleRestock(item.id)}>{item.onRestockList ? 'On restock list' : 'Add to list'} <ArrowUpRight size={13} /></button>
                     </div>
                   </div>
@@ -1339,7 +1633,7 @@ function App() {
                 <Search size={19} />
                 <strong>{tools.length === 0 ? 'No tools added yet' : 'No tools found'}</strong>
                 <span>{tools.length === 0 ? 'Add your first tool to start building your workshop.' : 'Try another name, category, or location.'}</span>
-                {tools.length === 0 && <button className="add-button" onClick={() => setModal('tool')} type="button"><Plus size={15} /> Add a tool</button>}
+                {tools.length === 0 && <button className="add-button" onClick={openAddTool} type="button"><Plus size={15} /> Add a tool</button>}
               </div>
             ) : (
               <div className="tool-grid">
@@ -1350,10 +1644,17 @@ function App() {
                       <span className={`tool-status ${tool.status === 'Due soon' ? 'tool-status-due' : ''}`}><span />{tool.status === 'Good' ? 'In good shape' : tool.status}</span>
                       <span className="tool-card-more"><MoreHorizontal size={16} /></span>
                     </div>
-                    <span className="tool-card-copy"><span><strong>{tool.name}</strong><small>{tool.model}</small></span><ArrowUpRight size={16} /></span>
+                    <span className="tool-card-copy">
+                      <span>
+                        <strong>{tool.name}</strong>
+                        <small>{tool.model}</small>
+                        <small className="record-attribution">Added by {tool.createdBy ?? 'starter inventory'}</small>
+                      </span>
+                      <ArrowUpRight size={16} />
+                    </span>
                   </button>
                 ))}
-                <button className="add-tool-card" onClick={() => setModal('tool')} type="button">
+                <button className="add-tool-card" onClick={openAddTool} type="button">
                   <span className="add-tool-icon"><Plus size={18} /></span><strong>Make room for one more</strong><small>Add a tool to your workshop</small><span className="add-tool-link">Add a tool <ArrowRight size={14} /></span>
                 </button>
               </div>
@@ -1388,6 +1689,15 @@ function App() {
                   <span className="section-eyebrow">{profileTool.category.toUpperCase()} <span>·</span> {profileTool.id}</span>
                   <h2 id="profile-title">{profileTool.name}</h2>
                   <p>{profileTool.model}</p>
+                  <small className="record-attribution">Added by {profileTool.createdBy ?? 'starter inventory'}</small>
+                </div>
+                <div className="profile-header-actions">
+                  <button className="icon-button" aria-label={`Edit ${profileTool.name}`} onClick={() => {
+                    setEditingToolId(profileTool.id)
+                    setProfileRoute(null)
+                    setModal('tool')
+                  }} type="button"><Pencil size={15} /></button>
+                  <button className="icon-button" aria-label={`Delete ${profileTool.name}`} onClick={() => removeTool(profileTool.id)} type="button"><Trash2 size={15} /></button>
                 </div>
                 <button className="icon-button profile-close" aria-label="Close tool profile" onClick={() => setProfileRoute(null)} type="button"><X size={18} /></button>
               </header>
@@ -1410,8 +1720,10 @@ function App() {
                       return (
                         <div className="profile-task" key={task.id}>
                           <span className={`task-icon ${task.color}`}><Icon size={16} /></span>
-                          <div><strong>{task.action}</strong><span>{task.due}{task.recurrence && task.recurrence !== 'none' ? ` · Repeats ${task.recurrence}` : ''}</span></div>
+                          <div><strong>{task.action}</strong><span>{task.due}{task.recurrence && task.recurrence !== 'none' ? ` · Repeats ${task.recurrence}` : ''}</span><small className="record-attribution">Added by {task.createdBy ?? 'an earlier member'}</small></div>
+                          <button className="profile-log-button" onClick={() => editMaintenanceTask(task.id)} type="button">Edit</button>
                           <button className="profile-log-button" onClick={() => { setProfileRoute(null); openService(task.id) }} type="button">Log service</button>
+                          <button className="profile-log-button" onClick={() => removeMaintenanceTask(task.id)} type="button">Delete</button>
                         </div>
                       )
                     }) : (
@@ -1433,7 +1745,13 @@ function App() {
                               <strong>{log.action}</strong>
                               <time dateTime={log.completedAt}>{formatServiceDate(log.completedAt)}</time>
                               {log.note && <p>{log.note}</p>}
+                              <small className="record-attribution">Added by {log.createdBy ?? 'an earlier member'}</small>
                             </div>
+                            <button className="task-remove" aria-label={`Edit service record: ${log.action}`} onClick={() => {
+                              setEditingServiceLogId(log.id)
+                              setModal('edit-log')
+                            }} type="button"><Pencil size={13} /></button>
+                            <button className="task-remove" aria-label={`Delete service record: ${log.action}`} onClick={() => removeServiceLog(log.id)} type="button"><Trash2 size={13} /></button>
                           </article>
                         ))}
                       </div>
@@ -1477,43 +1795,43 @@ function App() {
         {modal && (
           <motion.div className="modal-backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onMouseDown={(event) => { if (event.target === event.currentTarget) setModal(null) }}>
             <motion.div className="modal-card" initial={{ opacity: 0, y: 16, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 10, scale: 0.98 }}>
-              <div className="modal-heading"><div><span className="section-eyebrow">{modal === 'tool' ? 'MAKE IT PART OF THE WORKSHOP' : modal === 'stock' ? 'KEEP THE SHELF IN CHECK' : modal === 'maintenance' ? 'STAY AHEAD OF THE NEXT PROJECT' : 'A LITTLE CARE GOES A LONG WAY'}</span><h2>{modal === 'tool' ? 'Add a tool' : modal === 'stock' ? 'Add stock item' : modal === 'maintenance' ? 'Add maintenance reminder' : 'Log a service'}</h2></div><button className="icon-button" aria-label="Close dialog" onClick={() => setModal(null)} type="button"><X size={18} /></button></div>
+              <div className="modal-heading"><div><span className="section-eyebrow">{modal === 'tool' ? 'MAKE IT PART OF THE WORKSHOP' : modal === 'stock' ? 'KEEP THE SHELF IN CHECK' : modal === 'maintenance' ? 'STAY AHEAD OF THE NEXT PROJECT' : modal === 'edit-log' ? 'KEEP THE HISTORY ACCURATE' : 'A LITTLE CARE GOES A LONG WAY'}</span><h2>{modal === 'tool' ? editingTool ? 'Edit tool' : 'Add a tool' : modal === 'stock' ? editingStockItem ? 'Edit stock item' : 'Add stock item' : modal === 'maintenance' ? editingMaintenanceTask ? 'Edit maintenance reminder' : 'Add maintenance reminder' : modal === 'edit-log' ? 'Edit service record' : 'Log a service'}</h2></div><button className="icon-button" aria-label="Close dialog" onClick={() => { setEditingToolId(null); setEditingStockItemId(null); setEditingMaintenanceTaskId(null); setEditingServiceLogId(null); setModal(null) }} type="button"><X size={18} /></button></div>
               {modal === 'tool' ? (
-                <form className="modal-form" onSubmit={addTool}>
-                  <label>Tool name<input autoFocus name="name" placeholder="e.g. Bandsaw" required /></label>
-                  <label>Category<select name="category" defaultValue="Woodworking"><option>Woodworking</option><option>3D printing</option><option>Metalworking</option><option>Electronics</option><option>Other</option></select></label>
-                  <label>Make & model<input name="model" placeholder="e.g. Laguna · 14|BX" /></label>
-                  <label>Where does it live?<input name="location" placeholder="e.g. East wall" /></label>
-                  <div className="modal-actions"><button className="cancel-button" onClick={() => setModal(null)} type="button">Not now</button><button className="add-button" type="submit"><Plus size={15} /> Add to workshop</button></div>
+                <form className="modal-form" key={editingTool?.id ?? 'new-tool'} onSubmit={addTool}>
+                  <label>Tool name<input autoFocus name="name" defaultValue={editingTool?.name ?? ''} placeholder="e.g. Bandsaw" required /></label>
+                  <label>Category<select name="category" defaultValue={editingTool?.category ?? 'Woodworking'}><option>Woodworking</option><option>3D printing</option><option>Metalworking</option><option>Electronics</option><option>Other</option></select></label>
+                  <label>Make & model<input name="model" defaultValue={editingTool?.model === 'Model not added' ? '' : editingTool?.model ?? ''} placeholder="e.g. Laguna · 14|BX" /></label>
+                  <label>Where does it live?<input name="location" defaultValue={editingTool?.location ?? ''} placeholder="e.g. East wall" /></label>
+                  <div className="modal-actions"><button className="cancel-button" onClick={() => { setEditingToolId(null); setModal(null) }} type="button">Not now</button><button className="add-button" type="submit"><Plus size={15} /> {editingTool ? 'Save changes' : 'Add to workshop'}</button></div>
                 </form>
               ) : modal === 'stock' ? (
-                <form className="modal-form" onSubmit={addStockItem}>
-                  <label>Item name<input autoFocus name="name" placeholder="e.g. Sandpaper sheets" required /></label>
-                  <label>Stored with / location<input name="location" placeholder="e.g. Finishing cabinet" /></label>
+                <form className="modal-form" key={editingStockItem?.id ?? 'new-stock'} onSubmit={addStockItem}>
+                  <label>Item name<input autoFocus name="name" defaultValue={editingStockItem?.name ?? ''} placeholder="e.g. Sandpaper sheets" required /></label>
+                  <label>Stored with / location<input name="location" defaultValue={editingStockItem?.location ?? ''} placeholder="e.g. Finishing cabinet" /></label>
                   <div className="stock-form-row">
-                    <label>Current quantity<input name="quantity" type="number" min="0" step="any" defaultValue="0" required /></label>
-                    <label>Unit<select name="unit" defaultValue="pcs"><option value="pcs">pieces (pcs)</option><option value="kg">kilograms (kg)</option><option value="L">liters (L)</option><option value="m">meters (m)</option></select></label>
+                    <label>Current quantity<input name="quantity" type="number" min="0" step="any" defaultValue={editingStockItem?.quantity ?? 0} required /></label>
+                    <label>Unit<select name="unit" defaultValue={editingStockItem?.unit ?? 'pcs'}><option value="pcs">pieces (pcs)</option><option value="kg">kilograms (kg)</option><option value="L">liters (L)</option><option value="m">meters (m)</option></select></label>
                   </div>
                   <div className="stock-form-row">
-                    <label>Capacity<input name="capacity" type="number" min="0.01" step="any" defaultValue="1" required /></label>
-                    <label>Low-stock threshold<input name="minimum" type="number" min="0" step="any" defaultValue="0" required /></label>
+                    <label>Capacity<input name="capacity" type="number" min="0.01" step="any" defaultValue={editingStockItem?.capacity ?? 1} required /></label>
+                    <label>Low-stock threshold<input name="minimum" type="number" min="0" step="any" defaultValue={editingStockItem?.minimum ?? 0} required /></label>
                   </div>
                   <p className="stock-form-hint">We’ll flag this item when its quantity reaches the low-stock threshold.</p>
-                  <div className="modal-actions"><button className="cancel-button" onClick={() => setModal(null)} type="button">Not now</button><button className="add-button" type="submit"><Plus size={15} /> Add to stock</button></div>
+                  <div className="modal-actions"><button className="cancel-button" onClick={() => { setEditingStockItemId(null); setModal(null) }} type="button">Not now</button><button className="add-button" type="submit"><Plus size={15} /> {editingStockItem ? 'Save changes' : 'Add to stock'}</button></div>
                 </form>
               ) : modal === 'maintenance' ? (
                 tools.length > 0 ? (
-                  <form className="modal-form" onSubmit={addMaintenanceTask}>
-                    <label>What needs doing?<input autoFocus name="action" placeholder="e.g. Clean the dust filter" required /></label>
+                  <form className="modal-form" key={editingMaintenanceTask?.id ?? 'new-maintenance'} onSubmit={addMaintenanceTask}>
+                    <label>What needs doing?<input autoFocus name="action" defaultValue={editingMaintenanceTask?.action ?? ''} placeholder="e.g. Clean the dust filter" required /></label>
                     <label>Which tool?
-                      <select name="tool" defaultValue="" required>
+                      <select name="tool" defaultValue={editingMaintenanceTask?.tool ?? ''} required>
                         <option value="" disabled>Choose a tool</option>
                         {tools.map((tool) => <option key={tool.id} value={tool.name}>{tool.name}</option>)}
                       </select>
                     </label>
                     <label>Due date<input name="dueAt" type="date" value={taskDueDate} onChange={(event) => setTaskDueDate(event.target.value)} required /></label>
                     <label>Repeat
-                      <select name="recurrence" defaultValue="none">
+                      <select name="recurrence" defaultValue={editingMaintenanceTask?.recurrence ?? 'none'}>
                         <option value="none">Does not repeat</option>
                         <option value="weekly">Every week</option>
                         <option value="monthly">Every month</option>
@@ -1521,19 +1839,32 @@ function App() {
                         <option value="yearly">Every year</option>
                       </select>
                     </label>
-                    <div className="modal-actions"><button className="cancel-button" onClick={() => setModal(null)} type="button">Not now</button><button className="add-button" type="submit"><CalendarDays size={15} /> Save reminder</button></div>
+                    <div className="modal-actions"><button className="cancel-button" onClick={() => { setEditingMaintenanceTaskId(null); setModal(null) }} type="button">Not now</button><button className="add-button" type="submit"><CalendarDays size={15} /> {editingMaintenanceTask ? 'Save changes' : 'Save reminder'}</button></div>
                   </form>
                 ) : (
                   <div className="form-empty-state">
                     <p>Add a tool to your workshop first. Then you can attach maintenance reminders to it.</p>
-                    <button className="add-button" onClick={() => setModal('tool')} type="button"><Plus size={15} /> Add a tool</button>
+                    <button className="add-button" onClick={openAddTool} type="button"><Plus size={15} /> Add a tool</button>
                   </div>
                 )
+              ) : modal === 'edit-log' ? (
+                editingServiceLog ? (
+                  <form className="modal-form" key={editingServiceLog.id} onSubmit={editServiceLog}>
+                    <label>Which tool?
+                      <select name="tool" defaultValue={editingServiceLog.tool} required>
+                        {tools.map((tool) => <option key={tool.id} value={tool.name}>{tool.name}</option>)}
+                      </select>
+                    </label>
+                    <label>Service performed<input autoFocus name="action" defaultValue={editingServiceLog.action} required /></label>
+                    <label>A note for next time <span className="optional-label">OPTIONAL</span><textarea name="note" defaultValue={editingServiceLog.note} rows={3} /></label>
+                    <div className="modal-actions"><button className="cancel-button" onClick={() => { setEditingServiceLogId(null); setModal(null) }} type="button">Not now</button><button className="add-button" type="submit"><Check size={15} /> Save changes</button></div>
+                  </form>
+                ) : <div className="form-empty-state"><p>This service record is no longer available.</p><button className="cancel-button" onClick={() => setModal(null)} type="button">Close</button></div>
               ) : (
                 tools.length === 0 ? (
                   <div className="form-empty-state">
                     <p>Add a tool to your workshop before logging a service.</p>
-                    <button className="add-button" onClick={() => setModal('tool')} type="button"><Plus size={15} /> Add a tool</button>
+                    <button className="add-button" onClick={openAddTool} type="button"><Plus size={15} /> Add a tool</button>
                   </div>
                 ) : <form className="service-form" onSubmit={(event) => {
                   event.preventDefault()
@@ -1580,12 +1911,18 @@ function App() {
           hasLocalBackup={hasLocalBackup}
           onDownloadBackup={downloadLocalBackup}
           onClose={() => setAccountOpen(false)}
+          onReloadSharedWorkshop={() => {
+            setSyncError('')
+            setSyncConflict(false)
+            setLoadRetry((retry) => retry + 1)
+          }}
           onRetrySync={() => {
             if (userId && syncReadyFor !== userId) setLoadRetry((retry) => retry + 1)
             else setSyncRetry((retry) => retry + 1)
             setSyncError('')
           }}
           sessionError={authSessionError}
+          syncConflict={syncConflict}
           syncError={syncError}
           syncStatus={syncStatus}
           user={session?.user ?? null}

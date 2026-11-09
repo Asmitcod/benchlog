@@ -52,7 +52,7 @@ BenchLog keeps everything about your tools in one dashboard: what needs care, wh
   <tr>
     <td width="33%" valign="top">
       <h3>☁️ Sync</h3>
-      Email magic-link sign-in through Supabase, with your workshop synced across devices.
+      Email magic-link sign-in through Supabase, with one shared workshop synced live across signed-in accounts.
     </td>
     <td width="33%" valign="top">
       <h3>💾 Local backup</h3>
@@ -81,11 +81,11 @@ flowchart LR
 ## 🧱 Built with
 
 <p align="center">
-  <img src="https://skillicons.dev/icons?i=react,ts,vite,tailwind,threejs,supabase,postgres,githubactions,flask&theme=dark" alt="React, TypeScript, Vite, Tailwind CSS, Three.js, Supabase, PostgreSQL, GitHub Actions, Flask" />
+  <img src="https://skillicons.dev/icons?i=react,ts,vite,tailwind,supabase,postgres,githubactions,flask&theme=dark" alt="React, TypeScript, Vite, Tailwind CSS, Supabase, PostgreSQL, GitHub Actions, Flask" />
 </p>
 
 <p align="center">
-  <sub>Also: <b>Glisse</b> glass panels · <b>Motion</b> transitions · <b>React Three Fiber + Drei</b> tool illustration · <b>Lucide</b> icons · <b>qrcode.react</b> tags</sub>
+  <sub>Also: <b>Glisse</b> glass panels · <b>Motion</b> transitions · <b>Lucide</b> tool illustrations and icons · <b>qrcode.react</b> tags</sub>
 </p>
 
 ### Architecture
@@ -98,7 +98,7 @@ flowchart TB
     end
     subgraph SB["Supabase"]
         AUTH["Auth · email link"]
-        DB[("PostgreSQL + RLS · workshop_snapshots")]
+        DB[("PostgreSQL + RLS · shared_workshop")]
         ST[("Storage · tool-files, private")]
     end
     GH["GitHub Actions"] --> PAGES["GitHub Pages"]
@@ -109,7 +109,9 @@ flowchart TB
     ST -.->|prepared, not wired yet| UI
 ```
 
-The frontend talks to Supabase directly. Row Level Security keeps each account's data private. Flask in `backend/` is only a health-check scaffold and is not deployed.
+The frontend talks to Supabase directly. Every authenticated BenchLog account shares one global workshop and can view, add, edit, or delete its records. Contributor email addresses are visible on additions. Do not put private, sensitive, or workshop-specific data into this shared workspace. Flask in `backend/` is only a health-check scaffold and is not deployed.
+
+**Concurrency limitation:** cloud sync currently saves the workshop as one snapshot. A version check prevents a stale save from silently replacing a newer cloud snapshot; the member with the stale edit gets a local backup and must reload the shared copy. Concurrent edits are not automatically merged, so this is not yet production-ready collaboration for simultaneous editing.
 
 ## 🚀 Quick start
 
@@ -202,8 +204,9 @@ If Vite picks another port, add that exact origin and path to the allowlist too.
 
 **First sign-in behaviour**
 
-- No cloud snapshot yet: your browser data is uploaded to the account.
-- Cloud snapshot exists: cloud wins on this browser. If the two differ, the local copy is first saved to a browser-local backup list (up to 10 copies), downloadable from the account dialog.
+- No shared workspace yet: this browser's data and the account's previous private snapshot are used to initialize the global workspace.
+- Shared workspace exists: it replaces this browser's data after a local backup is made. Each account's previous private snapshot is merged into the shared workspace once when that account first signs in.
+- All signed-in accounts can edit or delete shared data. New tools, reminders, and stock items show the contributor's email to every member.
 - Sync fails: the error shows in the account dialog, local changes stay in browser storage, and Retry sync retries after the connection or database issue is fixed.
 
 </details>
@@ -220,7 +223,7 @@ If Vite picks another port, add that exact origin and path to the allowlist too.
 | `VITE_SUPABASE_URL` | Your Supabase project URL |
 | `VITE_SUPABASE_PUBLISHABLE_KEY` | The publishable client key |
 
-These are build-time frontend settings, safe in a public client only because RLS protects the data. Database migrations deploy separately through Supabase's GitHub integration.
+These are build-time frontend settings; the publishable key is public by design. RLS permits any authenticated account to manage the one shared workshop, so do not store confidential data there. Apply the database migrations to the production Supabase project before deploying frontend changes that use a new schema.
 
 **If the repo name, owner or host changes:** update `base` in `vite.config.ts`, the Supabase Site URL and redirect allowlist, and the Pages source, then test a full sign-in round trip.
 
