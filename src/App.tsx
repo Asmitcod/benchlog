@@ -34,7 +34,6 @@ import {
 } from 'lucide-react'
 import { lazy, Suspense, useEffect, useLayoutEffect, useMemo, useState } from 'react'
 import type { FormEvent } from 'react'
-import asciiArtwork from '../ascii-art.svg?url'
 
 type Tool = {
   id: string
@@ -316,7 +315,6 @@ function App() {
 
   return (
     <div className="app-shell" data-theme={theme}>
-      {theme === 'dark' && <img className="ascii-backdrop" src={asciiArtwork} data-glisse-backdrop="" alt="" aria-hidden="true" />}
       <aside className={`sidebar ${menuOpen ? 'sidebar-open' : ''}`}>
         <a className="brand" href="#" onClick={() => selectNavigation('Overview')}>
           <span className="brand-mark"><span /><span /><span /></span>
